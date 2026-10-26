@@ -1,6 +1,23 @@
 import { Fragment } from 'react';
 import { money, itemTotal } from './Layout';
 import { SHOP } from '../printer/escpos';
+import { upiQr } from '../printer/upi';
+
+// UPI payment QR as crisp SVG (one path of dark modules, 2-module quiet zone).
+function UpiQr() {
+  const { size, dark } = upiQr();
+  let d = '';
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) if (dark(r, c)) d += `M${c} ${r}h1v1h-1z`;
+  }
+  return (
+    <svg viewBox={`-2 -2 ${size + 4} ${size + 4}`} shapeRendering="crispEdges"
+      style={{ display: 'block', width: '38mm', height: '38mm', margin: '2mm auto 0' }}>
+      <rect x={-2} y={-2} width={size + 4} height={size + 4} fill="#fff" />
+      <path d={d} fill="#000" />
+    </svg>
+  );
+}
 
 // Hidden on screen; shown only when printing (see .receipt-print in index.css).
 // Sized for a 58mm thermal roll.
@@ -56,6 +73,10 @@ export default function Receipt({ order, items, customer }) {
       </table>
       <div style={{ textAlign: 'center', marginTop: 6 }}>
         Thank you! Visit again
+      </div>
+      <div style={{ textAlign: 'center', marginTop: 6 }}>
+        Pay using any UPI app
+        <UpiQr />
       </div>
     </div>
   );

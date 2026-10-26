@@ -1,6 +1,7 @@
 // Builds a 58mm receipt as raw ESC/POS bytes for a thermal printer.
 // 58mm printers fit 32 characters per line in the default font.
 import { itemTotal, unitTotal } from '../components/Layout';
+import { upiQr } from './upi';
 
 export const SHOP = {
   name: 'Crust & Beyond',
@@ -37,6 +38,30 @@ function row(left, right) {
 }
 
 const RULE = '-'.repeat(WIDTH);
+
+// The UPI QR as raster graphics (GS v 0), which every ESC/POS printer supports.
+// Each module is SCALE x SCALE dots; sent in bands so small printer buffers don't overflow.
+function qrRaster(scale = 6, band = 48) {
+  const { size, dark } = upiQr();
+  const dots = size * scale;
+  const bytesPerRow = Math.ceil(dots / 8);
+  const out = [];
+  for (let y0 = 0; y0 < dots; y0 += band) {
+    const rows = Math.min(band, dots - y0);
+    out.push(GS, 0x76, 0x30, 0, bytesPerRow & 0xff, bytesPerRow >> 8, rows & 0xff, rows >> 8);
+    for (let y = y0; y < y0 + rows; y++) {
+      for (let b = 0; b < bytesPerRow; b++) {
+        let byte = 0;
+        for (let bit = 0; bit < 8; bit++) {
+          const x = b * 8 + bit;
+          if (x < dots && dark(Math.floor(y / scale), Math.floor(x / scale))) byte |= 0x80 >> bit;
+        }
+        out.push(byte);
+      }
+    }
+  }
+  return out;
+}
 
 export function buildReceipt({ order, items, customer }) {
   const out = [];
@@ -77,6 +102,10 @@ export function buildReceipt({ order, items, customer }) {
   line(RULE);
   raw(CMD.alignCenter);
   line('Thank you! Visit again');
+  line();
+  line('Pay using any UPI app');
+  raw(qrRaster());
+  raw(CMD.alignLeft);
   raw(CMD.feed(4));
   raw(CMD.cut);
 
