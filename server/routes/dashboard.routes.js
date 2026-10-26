@@ -16,19 +16,21 @@ router.get('/', async (_req, res) => {
        COUNT(*) AS orders,
        COALESCE(SUM(total), 0) AS sales
      FROM orders
-     WHERE DATE(created_at) = CURDATE()`
+     WHERE (created_at AT TIME ZONE $1)::date = (now() AT TIME ZONE $1)::date`,
+    [pool.TZ]
   );
 
   // 7-day trend
   const trendResult = await pool.query(
     `SELECT
-       DATE(created_at) AS day,
+       (created_at AT TIME ZONE $1)::date AS day,
        COUNT(*) AS orders,
        COALESCE(SUM(total), 0) AS sales
      FROM orders
-     WHERE created_at >= CURDATE() - INTERVAL 6 DAY
-     GROUP BY DATE(created_at)
-     ORDER BY day`
+     WHERE (created_at AT TIME ZONE $1)::date >= (now() AT TIME ZONE $1)::date - 6
+     GROUP BY 1
+     ORDER BY day`,
+    [pool.TZ]
   );
 
   const today = todayResult[0][0];

@@ -22,12 +22,12 @@ router.post('/', async (req, res) => {
   }
 
   const result = await pool.query(
-    'INSERT INTO categories (name) VALUES (?)',
+    'INSERT INTO categories (name) VALUES ($1) RETURNING id',
     [name]
   );
 
   res.status(201).json({
-    id: result[0].insertId,
+    id: result[0][0].id,
     name
   });
 });
@@ -40,7 +40,7 @@ router.put('/:id', async (req, res) => {
   }
 
   await pool.query(
-    'UPDATE categories SET name = ? WHERE id = ?',
+    'UPDATE categories SET name = $1 WHERE id = $2',
     [name, req.params.id]
   );
 
@@ -52,7 +52,7 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   await pool.query(
-    'DELETE FROM categories WHERE id = ?',
+    'DELETE FROM categories WHERE id = $1',
     [req.params.id]
   );
 

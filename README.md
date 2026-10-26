@@ -3,8 +3,8 @@
 A minimal full-stack POS for a small restaurant.
 
 - **Frontend:** React 19 (CRA) + Tailwind CSS + React Router
-- **Backend:** Node.js + Express + MySQL (`mysql2`), JWT auth, bcrypt
-- **Database:** MySQL `pos` (XAMPP defaults: `root` / no password)
+- **Backend:** Node.js + Express + PostgreSQL (`pg`), JWT auth, bcrypt
+- **Database:** PostgreSQL (hosted on Supabase)
 
 ## Features
 
@@ -22,12 +22,14 @@ A minimal full-stack POS for a small restaurant.
 ```bash
 cd server
 npm install
-npm run migrate   # creates the `pos` database + tables
+npm run migrate   # creates the tables
 npm run seed      # creates admin user + sample products
 npm start         # API on http://localhost:5000
 ```
 
-DB credentials live in `server/.env` (defaults match XAMPP: host `localhost`, user `root`, empty password).
+DB credentials live in `server/.env`: set `DATABASE_URL` to the Supabase connection string
+(Project → Connect → Transaction pooler, with your database password filled in).
+For a local Postgres, leave it empty and set `DB_HOST` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` instead.
 
 ### 2. Frontend
 

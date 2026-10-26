@@ -29,28 +29,24 @@ router.post('/', async (req, res) => {
 
   const itemCount = items.length;
 
-  const conn = await db.pool.getConnection();
+  const conn = await db.pool.connect();
 
   try {
-    await conn.beginTransaction();
+    await conn.query('BEGIN');
 
     // Create order
-    const [orderResult] = await conn.query(
-      'INSERT INTO orders (total, item_count) VALUES (?, ?)',
+    const { rows: [order] } = await conn.query(
+      'INSERT INTO orders (total, item_count) VALUES ($1, $2) RETURNING id, created_at',
       [total, itemCount]
-    );
-
-    const [[order]] = await conn.query(
-      'SELECT id, created_at FROM orders WHERE id = ?',
-      [orderResult.insertId]
     );
 
     // Create order items one by one so each line's sub-items can point at its id.
     for (const item of items) {
-      const [itemResult] = await conn.query(
+      const { rows: [itemResult] } = await conn.query(
         `INSERT INTO order_items
          (order_id, product_id, name, price, qty, amount)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id`,
         [
           order.id,
           item.id || null,
@@ -66,13 +62,19 @@ router.post('/', async (req, res) => {
         await conn.query(
           `INSERT INTO order_item_subitems
            (order_item_id, subitem_id, group_name, name, price)
-           VALUES ?`,
-          [subs.map((x) => [itemResult.insertId, x.id || null, x.group_name || '', x.name, Number(x.price) || 0])]
+           SELECT $1::int, * FROM unnest($2::int[], $3::text[], $4::text[], $5::numeric[])`,
+          [
+            itemResult.id,
+            subs.map((x) => x.id || null),
+            subs.map((x) => x.group_name || ''),
+            subs.map((x) => x.name),
+            subs.map((x) => Number(x.price) || 0),
+          ]
         );
       }
     }
 
-    await conn.commit();
+    await conn.query('COMMIT');
 
     res.status(201).json({
       id: order.id,
@@ -82,7 +84,7 @@ router.post('/', async (req, res) => {
     });
 
   } catch (error) {
-    await conn.rollback();
+    await conn.query('ROLLBACK').catch(() => {});
 
     console.error('Order creation failed:', error);
 
@@ -127,29 +129,30 @@ router.post('/:id/customer', async (req, res) => {
     mobileNum = Number(rawMobile);
   }
 
-  const conn = await db.pool.getConnection();
+  const conn = await db.pool.connect();
   try {
-    const [o] = await conn.query('SELECT id, total FROM orders WHERE id = ?', [orderId]);
+    const { rows: o } = await conn.query('SELECT id, total FROM orders WHERE id = $1', [orderId]);
     if (!o.length) return res.status(404).json({ error: 'order not found' });
 
-    await conn.beginTransaction();
+    await conn.query('BEGIN');
 
-    const [c] = await conn.query(
+    const { rows: [c] } = await conn.query(
       `INSERT INTO customers (order_id, customer_name, customer_mobile, customer_email)
-       VALUES (?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4)
+       RETURNING id`,
       [orderId, name, mobileNum, email]
     );
 
     await conn.query(
       `INSERT INTO payment (order_id, amount, cash, online, status)
-       VALUES (?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5)`,
       [orderId, totalAmt || Number(o[0].total), cashAmt, onlineAmt, 'Completed']
     );
 
-    await conn.commit();
-    res.status(201).json({ id: c.insertId, order_id: orderId });
+    await conn.query('COMMIT');
+    res.status(201).json({ id: c.id, order_id: orderId });
   } catch (error) {
-    await conn.rollback().catch(() => {});
+    await conn.query('ROLLBACK').catch(() => {});
     console.error('Attach customer failed:', error);
     res.status(500).json({ error: error.message || 'Failed to save customer' });
   } finally {
@@ -171,15 +174,15 @@ router.get('/',async(req,res) => {
 router.get('/getOrderDetails/:id',async(req,res) =>{
   try{
     const orderId = req.params.id;
-    const [orderDetails] = await db.query('SELECT * FROM orders WHERE id = ?',[orderId]);
+    const [orderDetails] = await db.query('SELECT * FROM orders WHERE id = $1',[orderId]);
     if(!orderDetails.length) return res.status(200).json({message : 'No record found'});
 
-    const [items] = await db.query('SELECT * FROM order_items WHERE order_id = ?',[orderId]);
+    const [items] = await db.query('SELECT * FROM order_items WHERE order_id = $1 ORDER BY id',[orderId]);
     const [subs] = items.length
-      ? await db.query('SELECT * FROM order_item_subitems WHERE order_item_id IN (?) ORDER BY id',[items.map((i) => i.id)])
+      ? await db.query('SELECT * FROM order_item_subitems WHERE order_item_id = ANY($1::int[]) ORDER BY id',[items.map((i) => i.id)])
       : [[]];
     for (const i of items) i.subitems = subs.filter((x) => x.order_item_id === i.id);
-    const [customer] = await db.query('SELECT * FROM customers WHERE order_id = ?',[orderId]);
+    const [customer] = await db.query('SELECT * FROM customers WHERE order_id = $1',[orderId]);
     return res.status(200).json({order:orderDetails[0],items:items,customer:customer[0]});
 
   }catch(error){

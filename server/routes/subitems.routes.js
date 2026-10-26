@@ -15,7 +15,7 @@ router.get('/', async (req, res) => {
   `;
 
   if (group) {
-    sql += ' AND group_name = ?';
+    sql += ' AND group_name = $1';
     params.push(group);
   }
 
@@ -37,12 +37,12 @@ router.post('/', async (req, res) => {
   }
 
   const result = await pool.query(
-    'INSERT INTO subitems (group_name, name, price) VALUES (?, ?, ?)',
+    'INSERT INTO subitems (group_name, name, price) VALUES ($1, $2, $3) RETURNING id',
     [group_name, name, price || 0]
   );
 
   res.status(201).json({
-    id: result[0].insertId,
+    id: result[0][0].id,
     group_name,
     name,
     price: price || 0
@@ -57,7 +57,7 @@ router.put('/:id', async (req, res) => {
   }
 
   await pool.query(
-    'UPDATE subitems SET group_name = ?, name = ?, price = ? WHERE id = ?',
+    'UPDATE subitems SET group_name = $1, name = $2, price = $3 WHERE id = $4',
     [group_name, name, price || 0, req.params.id]
   );
 
@@ -71,7 +71,7 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   await pool.query(
-    'DELETE FROM subitems WHERE id = ?',
+    'DELETE FROM subitems WHERE id = $1',
     [req.params.id]
   );
 

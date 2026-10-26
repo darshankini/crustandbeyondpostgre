@@ -42,7 +42,7 @@ router.get('/', async (req, res) => {
       p.image,
       p.category_id,
       c.name AS category,
-      (SELECT GROUP_CONCAT(g.group_name ORDER BY g.group_name SEPARATOR '|')
+      (SELECT string_agg(g.group_name, '|' ORDER BY g.group_name)
          FROM product_subitem_groups g WHERE g.product_id = p.id) AS subitem_groups
     FROM products p
     LEFT JOIN categories c ON c.id = p.category_id
@@ -50,14 +50,14 @@ router.get('/', async (req, res) => {
   `;
 
   if (category) {
-    sql += ' AND p.category_id = ?';
     params.push(category);
+    sql += ` AND p.category_id = $${params.length}`;
   }
 
   if (search) {
-    // Match anywhere in the name; escape LIKE wildcards so "%" or "_" are searched literally.
-    sql += " AND p.name LIKE ? ESCAPE '\\\\'";
+    // Case-insensitive match anywhere in the name; escape LIKE wildcards so "%" or "_" are searched literally.
     params.push(`%${search.replace(/[\\%_]/g, '\\$&')}%`);
+    sql += ` AND p.name ILIKE $${params.length} ESCAPE '\\'`;
   }
 
   sql += ' ORDER BY p.name';
@@ -73,11 +73,12 @@ router.get('/', async (req, res) => {
 // Replace the sub-item groups a product offers.
 async function setSubitemGroups(productId, groups) {
   const list = [...new Set((Array.isArray(groups) ? groups : []).filter(Boolean).map(String))];
-  await pool.query('DELETE FROM product_subitem_groups WHERE product_id = ?', [productId]);
+  await pool.query('DELETE FROM product_subitem_groups WHERE product_id = $1', [productId]);
   if (list.length) {
     await pool.query(
-      'INSERT INTO product_subitem_groups (product_id, group_name) VALUES ?',
-      [list.map((g) => [productId, g])]
+      `INSERT INTO product_subitem_groups (product_id, group_name)
+       SELECT $1::int, unnest($2::text[])`,
+      [productId, list]
     );
   }
   return list;
@@ -106,7 +107,8 @@ router.post('/', async (req, res) => {
   const result = await pool.query(
     `INSERT INTO products
       (name, price, category_id, image)
-     VALUES (?, ?, ?, ?)`,
+     VALUES ($1, $2, $3, $4)
+     RETURNING id`,
     [
       name,
       price,
@@ -115,10 +117,10 @@ router.post('/', async (req, res) => {
     ]
   );
 
-  const groups = await setSubitemGroups(result[0].insertId, subitem_groups);
+  const groups = await setSubitemGroups(result[0][0].id, subitem_groups);
 
   res.status(201).json({
-    id: result[0].insertId,
+    id: result[0][0].id,
     name,
     price,
     category_id: category_id || null,
@@ -132,11 +134,11 @@ router.put('/:id', async (req, res) => {
 
   await pool.query(
     `UPDATE products
-     SET name = ?,
-         price = ?,
-         category_id = ?,
-         image = ?
-     WHERE id = ?`,
+     SET name = $1,
+         price = $2,
+         category_id = $3,
+         image = $4
+     WHERE id = $5`,
     [
       name,
       price,
@@ -160,7 +162,7 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   await pool.query(
-    'DELETE FROM products WHERE id = ?',
+    'DELETE FROM products WHERE id = $1',
     [req.params.id]
   );
 

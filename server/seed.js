@@ -24,8 +24,8 @@ const SAMPLE_PRODUCTS = [
     // Admin user
     const hash = await bcrypt.hash('admin123', 10);
     await pool.query(
-      `INSERT INTO users (username, password, name) VALUES (?, ?, ?)
-       ON DUPLICATE KEY UPDATE password = VALUES(password)`,
+      `INSERT INTO users (username, password, name) VALUES ($1, $2, $3)
+       ON CONFLICT (username) DO UPDATE SET password = EXCLUDED.password`,
       ['admin', hash, 'Administrator']
     );
 
@@ -34,10 +34,10 @@ const SAMPLE_PRODUCTS = [
     const byName = Object.fromEntries(cats.map((c) => [c.name, c.id]));
 
     for (const [cat, name, price] of SAMPLE_PRODUCTS) {
-      const [exists] = await pool.query('SELECT id FROM products WHERE name = ?', [name]);
+      const [exists] = await pool.query('SELECT id FROM products WHERE name = $1', [name]);
       if (exists.length) continue;
       await pool.query(
-        'INSERT INTO products (category_id, name, price) VALUES (?, ?, ?)',
+        'INSERT INTO products (category_id, name, price) VALUES ($1, $2, $3)',
         [byName[cat] || null, name, price]
       );
     }

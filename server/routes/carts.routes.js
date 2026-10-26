@@ -23,7 +23,7 @@ router.get('/', async (_req, res) => {
     `SELECT ci.cart_id AS cref, ci.product_id AS id, p.name, ci.price, p.image, ci.qty, ci.subitems
      FROM cart_items ci
      JOIN products p ON p.id = ci.product_id
-     WHERE ci.cart_id IN (?)
+     WHERE ci.cart_id = ANY($1::int[])
      ORDER BY ci.id`,
     [ids]
   );
@@ -50,9 +50,9 @@ router.put('/', async (req, res) => {
   const carts = Array.isArray(req.body?.carts) ? req.body.carts : [];
 
   
-  const conn = await db.pool.getConnection();
+  const conn = await db.pool.connect();
   try {
-    await conn.beginTransaction();
+    await conn.query('BEGIN');
     await conn.query('DELETE FROM cart_items');
     await conn.query('DELETE FROM cart');
 
@@ -61,26 +61,26 @@ router.put('/', async (req, res) => {
       const total = list.reduce((s, i) => s + itemTotal({ ...i, subitems: cleanSubitems(i.subitems) }), 0);
       const itemCount = list.length;
 
-      const [r] = await conn.query(
-        'INSERT INTO cart (cart_id, cart_total, item_count) VALUES (?, ?, ?)',
+      const { rows: [r] } = await conn.query(
+        'INSERT INTO cart (cart_id, cart_total, item_count) VALUES ($1, $2, $3) RETURNING id',
         [String(c.cart_id), total, itemCount]
       );
-      const cid = r.insertId;
+      const cid = r.id;
 
 
       for (const it of list) {
         const subs = cleanSubitems(it.subitems);
         await conn.query(
-          'INSERT INTO cart_items (cart_id, product_id, price, qty, subitems) VALUES (?, ?, ?, ?, ?)',
+          'INSERT INTO cart_items (cart_id, product_id, price, qty, subitems) VALUES ($1, $2, $3, $4, $5)',
           [cid, Number(it.id), Number(it.price), Number(it.qty), subs.length ? JSON.stringify(subs) : null]
         );
       }
     }
 
-    await conn.commit();
+    await conn.query('COMMIT');
     res.json({ ok: true, carts: carts.length });
   } catch (error) {
-    await conn.rollback();
+    await conn.query('ROLLBACK').catch(() => {});
     console.error('Cart sync failed:', error);
     res.status(500).json({ error: error.message || 'Failed to sync carts' });
   } finally {
