@@ -104,6 +104,7 @@ export function buildReceipt({ order, items, customer }) {
   line('Thank you! Visit again');
   line();
   line('Pay using any UPI app');
+  raw(CMD.feed(1)); // gap between the text and the QR
   raw(qrRaster());
   raw(CMD.alignLeft);
   raw(CMD.feed(4));

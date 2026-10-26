@@ -12,7 +12,7 @@ function UpiQr() {
   }
   return (
     <svg viewBox={`-2 -2 ${size + 4} ${size + 4}`} shapeRendering="crispEdges"
-      style={{ display: 'block', width: '38mm', height: '38mm', margin: '2mm auto 0' }}>
+      style={{ display: 'block', width: '38mm', height: '38mm', margin: '4mm auto 0' }}>
       <rect x={-2} y={-2} width={size + 4} height={size + 4} fill="#fff" />
       <path d={d} fill="#000" />
     </svg>
@@ -71,11 +71,13 @@ export default function Receipt({ order, items, customer }) {
           </tr>
         </tbody>
       </table>
-      <div style={{ textAlign: 'center', marginTop: 6 }}>
-        Thank you! Visit again
+      <div style={{ textAlign: 'center', marginTop: 6,marginBottom: 6 }}>
+        Thank you! Visit again <br/>
+        
+       Pay using any UPI app 
       </div>
-      <div style={{ textAlign: 'center', marginTop: 6 }}>
-        Pay using any UPI app
+      <div style={{ textAlign: 'center', marginTop: 3 }}>
+        
         <UpiQr />
       </div>
     </div>
