@@ -57,6 +57,12 @@ CREATE TABLE IF NOT EXISTS orders (
   created_at TIMESTAMPTZ   DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_orders_created ON orders (created_at);
+-- Discount: `total` is the pre-discount amount; `final_total` is what the customer pays.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_type   VARCHAR(10)   NULL;              -- 'flat' | 'percent' | NULL
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount        NUMERIC(10,2) NOT NULL DEFAULT 0; -- value entered (Rs. or %)
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(10,2) NOT NULL DEFAULT 0; -- Rs. taken off
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS final_total     NUMERIC(10,2) NULL;
+UPDATE orders SET final_total = total WHERE final_total IS NULL;  -- orders placed before discounts existed
 
 -- Order line items
 CREATE TABLE IF NOT EXISTS order_items (
@@ -91,6 +97,8 @@ CREATE TABLE IF NOT EXISTS cart (
   item_count INT NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT now()
 );
+ALTER TABLE cart ADD COLUMN IF NOT EXISTS discount_type VARCHAR(10)   NULL;
+ALTER TABLE cart ADD COLUMN IF NOT EXISTS discount      NUMERIC(10,2) NOT NULL DEFAULT 0;
 
 -- Cart items
 CREATE TABLE IF NOT EXISTS cart_items (

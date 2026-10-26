@@ -6,6 +6,26 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["start"],
       "port": 3000
+    },
+    {
+      "name": "pos-api",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "server", "start"],
+      "port": 5000
+    },
+    {
+      "name": "pos-frontend-test",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["start"],
+      "port": 3001,
+      "env": { "PORT": "3001", "BROWSER": "none", "REACT_APP_API": "http://localhost:5001/api" }
+    },
+    {
+      "name": "pos-api-test",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "server", "start"],
+      "port": 5001,
+      "env": { "PORT": "5001", "CORS_ORIGINS": "http://localhost:3001" }
     }
   ]
 }

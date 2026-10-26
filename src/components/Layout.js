@@ -14,6 +14,14 @@ export const subitemsTotal = (subitems) => (subitems || []).reduce((s, x) => s +
 export const unitTotal = (item) => Number(item.price) + subitemsTotal(item.subitems);
 // Full line amount: (unit price + sub-items) x qty, rounded to the paisa (matches server/pricing.js).
 export const itemTotal = (item) => Math.round(unitTotal(item) * Number(item.qty) * 100) / 100;
+// Rupees taken off `total` for a 'flat' (Rs.) or 'percent' (%) discount, rounded to the nearest
+// whole rupee and never more than the total (matches server/pricing.js).
+export const discountAmount = (total, type, value) => {
+  const v = Number(value);
+  if ((type !== 'flat' && type !== 'percent') || !Number.isFinite(v) || v <= 0) return 0;
+  const off = type === 'percent' ? (total * Math.min(v, 100)) / 100 : v;
+  return Math.min(Math.round(off), total);
+};
 
 function Header() {
   const { user, logout } = useAuth();

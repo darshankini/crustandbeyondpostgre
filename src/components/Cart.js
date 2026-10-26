@@ -13,6 +13,7 @@ import { buildReceipt, buildKot } from '../printer/escpos';
 export default function Cart({ onClose, onEditOptions }) {
   const {
     items, inc, dec, setQty, remove, clear, total, count,
+    discount, setDiscount, discountAmt, finalTotal,
     sessions, activeId, addSession, selectSession, clearSessions, clearCurrentSession
   } = useCart();
   const [busy, setBusy] = useState(false);
@@ -60,14 +61,16 @@ export default function Cart({ onClose, onEditOptions }) {
     try {
       const order = await api.post('/orders', {
         items: items.map(({ id, name, price, qty, subitems }) => ({ id, name, price, qty, subitems: subitems || [] })),
+        discount_type: discountAmt > 0 ? discount.type : null,
+        discount: discountAmt > 0 ? Number(discount.value) : 0,
       });
-      setPending({ order, items: items.slice(), total });
+      setPending({ order, items: items.slice(), total: order.final_total ?? finalTotal });
     } catch (e) {
       alert('Checkout failed: ' + e.message);
     } finally {
       setBusy(false);
     }
-  }, [items, busy, total]);
+  }, [items, busy, discount, discountAmt, finalTotal]);
 
   // Print the customer bill for the pending order (optionally with customer details), then clear the cart.
   // Goes straight to the connected thermal printer; otherwise (or if that fails) the browser print dialog.
@@ -214,9 +217,58 @@ export default function Cart({ onClose, onEditOptions }) {
 
       {/* Totals + actions */}
       <div className="shrink-0 border-t p-4 space-y-3">
-        <div className="flex justify-between text-lg font-bold">
-          <span>Total</span>
-          <span className="text-brand tabular-nums">{money(total)}</span>
+        <div className="space-y-1.5 text-sm">
+          <div className="flex justify-between">
+            <span className="text-gray-600">Total</span>
+            <span className="tabular-nums">{money(total)}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-gray-600 mr-auto">Discount</span>
+            <div className="flex rounded-md border overflow-hidden" role="group" aria-label="Discount type">
+              {[
+                { type: 'flat', label: '₹ Flat' },
+                { type: 'percent', label: '% Off' },
+              ].map((o) => (
+                <button
+                  key={o.type}
+                  type="button"
+                  onClick={() => setDiscount({ ...discount, type: o.type })}
+                  disabled={!items.length}
+                  className={
+                    'px-2 py-1 text-xs font-medium disabled:opacity-40 ' +
+                    (discount.type === o.type ? 'bg-brand text-white' : 'bg-white text-gray-700 hover:bg-gray-100')
+                  }
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              max={discount.type === 'percent' ? 100 : undefined}
+              step="1"
+              value={discount.value}
+              onChange={(e) => setDiscount({ ...discount, value: e.target.value })}
+              disabled={!items.length}
+              placeholder="0"
+              aria-label={discount.type === 'percent' ? 'Discount percent' : 'Discount amount'}
+              className="w-20 rounded-md border px-2 py-1 text-right tabular-nums outline-none focus:border-brand disabled:opacity-40"
+            />
+          </div>
+          {discountAmt > 0 && (
+            <div className="flex justify-between text-green-700">
+              <span>
+                Discount{discount.type === 'percent' ? ` (${Math.min(Number(discount.value), 100)}%)` : ''}
+              </span>
+              <span className="tabular-nums">− {money(discountAmt)}</span>
+            </div>
+          )}
+        </div>
+        <div className="flex justify-between text-lg font-bold border-t pt-2">
+          <span>Final Total</span>
+          <span className="text-brand tabular-nums">{money(finalTotal)}</span>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <button

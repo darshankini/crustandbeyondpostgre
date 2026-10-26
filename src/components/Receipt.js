@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import { money, itemTotal } from './Layout';
+import { money, itemTotal, discountAmount } from './Layout';
 import { SHOP } from '../printer/escpos';
 import { upiQr } from '../printer/upi';
 
@@ -23,6 +23,9 @@ function UpiQr() {
 // Sized for a 58mm thermal roll.
 export default function Receipt({ order, items, customer }) {
   const hasCustomer = customer && (customer.name || customer.mobile || customer.email);
+  const total = items.reduce((s, i) => s + itemTotal(i), 0);
+  const discountAmt = order?.discount_amount ?? discountAmount(total, order?.discount_type, order?.discount);
+  const finalTotal = order?.final_total ?? total - discountAmt;
   return (
     <div className="receipt-print">
       <div style={{ textAlign: 'center' }}>
@@ -63,10 +66,22 @@ export default function Receipt({ order, items, customer }) {
       <div>--------------------------------</div>
       <table style={{ width: '100%' }}>
         <tbody>
+          {discountAmt > 0 && (
+            <>
+              <tr>
+                <td>Total</td>
+                <td style={{ textAlign: 'right' }}>{money(total)}</td>
+              </tr>
+              <tr>
+                <td>Discount{order.discount_type === 'percent' ? ` (${order.discount}%)` : ''}</td>
+                <td style={{ textAlign: 'right' }}>-{money(discountAmt)}</td>
+              </tr>
+            </>
+          )}
           <tr>
-            <td><strong>TOTAL</strong></td>
+            <td><strong>{discountAmt > 0 ? 'FINAL TOTAL' : 'TOTAL'}</strong></td>
             <td style={{ textAlign: 'right' }}>
-              <strong>{money(items.reduce((s, i) => s + itemTotal(i), 0))}</strong>
+              <strong>{money(finalTotal)}</strong>
             </td>
           </tr>
         </tbody>

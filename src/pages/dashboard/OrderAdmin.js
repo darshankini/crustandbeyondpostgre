@@ -62,6 +62,8 @@ export default function OrderAdmin({isOrderPreview}) {
                 <th className="px-3 py-2 text-center">Sr No</th>
                 <th className="px-3 py-2 text-center">Order Id</th>
                 <th className="px-3 text-center">Total</th>
+                <th className="px-3 text-center">Discount</th>
+                <th className="px-3 text-center">Final Total</th>
                 <th className="px-3 text-center">Order Date</th>
                 <th className='px-3 text-center'>Action</th>
             </tr>
@@ -72,6 +74,12 @@ export default function OrderAdmin({isOrderPreview}) {
                 <td className="px-3 py-2 text-center">{++i}</td>
                 <td className="px-3 text-center text-gray-500">{p.id}</td>
                 <td className="px-3 text-center tabular-nums">{money(p.total)}</td>
+                <td className="px-3 text-center tabular-nums text-gray-500">
+                  {Number(p.discount_amount) > 0
+                    ? money(p.discount_amount) + (p.discount_type === 'percent' ? ` (${p.discount}%)` : ' (Flat)')
+                    : '—'}
+                </td>
+                <td className="px-3 text-center tabular-nums font-medium">{money(p.final_total ?? p.total)}</td>
                 <td className="px-3 text-center tabular-nums">{formattedDate(p.created_at)}</td>
                 <td className="px-3 text-center">
                     <button onClick={() => isOrderPreview(p.id)} className='bg-orange-600 rounded-md text-sm p-1 text-white'>Preview</button>

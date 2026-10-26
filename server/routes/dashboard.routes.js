@@ -14,7 +14,7 @@ router.get('/', async (_req, res) => {
   const todayResult = await pool.query(
     `SELECT
        COUNT(*) AS orders,
-       COALESCE(SUM(total), 0) AS sales
+       COALESCE(SUM(COALESCE(final_total, total)), 0) AS sales
      FROM orders
      WHERE (created_at AT TIME ZONE $1)::date = (now() AT TIME ZONE $1)::date`,
     [pool.TZ]
@@ -25,7 +25,7 @@ router.get('/', async (_req, res) => {
     `SELECT
        (created_at AT TIME ZONE $1)::date AS day,
        COUNT(*) AS orders,
-       COALESCE(SUM(total), 0) AS sales
+       COALESCE(SUM(COALESCE(final_total, total)), 0) AS sales
      FROM orders
      WHERE (created_at AT TIME ZONE $1)::date >= (now() AT TIME ZONE $1)::date - 6
      GROUP BY 1

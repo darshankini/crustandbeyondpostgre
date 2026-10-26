@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const db = require('../db');
-const { itemTotal } = require('../pricing');
+const { itemTotal, cleanDiscount } = require('../pricing');
 
 // Keep only the fields we store for a chosen sub-item.
 const cleanSubitems = (list) =>
@@ -13,9 +13,9 @@ const cleanSubitems = (list) =>
 
 // GET /api/carts
 // Returns all open carts with display-ready items (name/image joined from products):
-// [ { cart_id, items: [{ id, name, price, image, qty, subitems }] } ]
+// [ { cart_id, discount_type, discount, items: [{ id, name, price, image, qty, subitems }] } ]
 router.get('/', async (_req, res) => {
-  const [carts] = await db.query('SELECT id, cart_id FROM cart ORDER BY id');
+  const [carts] = await db.query('SELECT id, cart_id, discount_type, discount FROM cart ORDER BY id');
   if (!carts.length) return res.json([]);
 
   const ids = carts.map((c) => c.id);
@@ -40,11 +40,16 @@ router.get('/', async (_req, res) => {
     });
   }
 
-  res.json(carts.map((c) => ({ cart_id: c.cart_id, items: byCart[c.id] || [] })));
+  res.json(carts.map((c) => ({
+    cart_id: c.cart_id,
+    discount_type: c.discount_type,
+    discount: Number(c.discount) || 0,
+    items: byCart[c.id] || [],
+  })));
 });
 
 // PUT /api/carts
-// Full-state sync. Body: { carts: [{ cart_id, items: [{ id, price, qty, subitems }] }] }.
+// Full-state sync. Body: { carts: [{ cart_id, discount_type, discount, items: [{ id, price, qty, subitems }] }] }.
 // Replaces every stored cart in one transaction so the DB always mirrors the client.
 router.put('/', async (req, res) => {
   const carts = Array.isArray(req.body?.carts) ? req.body.carts : [];
@@ -60,10 +65,11 @@ router.put('/', async (req, res) => {
       const list = Array.isArray(c.items) ? c.items : [];
       const total = list.reduce((s, i) => s + itemTotal({ ...i, subitems: cleanSubitems(i.subitems) }), 0);
       const itemCount = list.length;
+      const d = cleanDiscount(c.discount_type, c.discount);
 
       const { rows: [r] } = await conn.query(
-        'INSERT INTO cart (cart_id, cart_total, item_count) VALUES ($1, $2, $3) RETURNING id',
-        [String(c.cart_id), total, itemCount]
+        'INSERT INTO cart (cart_id, cart_total, item_count, discount_type, discount) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+        [String(c.cart_id), total, itemCount, d.type, d.value]
       );
       const cid = r.id;
 

@@ -1,10 +1,11 @@
 const router = require('express').Router();
 const db = require('../db');
-const { itemTotal } = require('../pricing');
+const { itemTotal, cleanDiscount, discountAmount } = require('../pricing');
 
 // POST /api/orders
-// { items: [{ id, name, price, qty, subitems? }] } — price is per unit, qty is the quantity sold,
-// subitems are [{ id, group_name, name, price }] added to the unit price.
+// { items: [{ id, name, price, qty, subitems? }], discount_type?, discount? } — price is per unit, qty is the
+// quantity sold, subitems are [{ id, group_name, name, price }] added to the unit price.
+// discount_type is 'flat' (discount in Rs.) or 'percent' (discount in %); the server recomputes the amounts.
 // Creates an order + its line items inside a transaction.
 router.post('/', async (req, res) => {
   const items = Array.isArray(req.body?.items) ? req.body.items : [];
@@ -27,6 +28,10 @@ router.post('/', async (req, res) => {
     0
   );
 
+  const { type: discountType, value: discount } = cleanDiscount(req.body?.discount_type, req.body?.discount);
+  const discountAmt = discountAmount(total, discountType, discount);
+  const finalTotal = Math.round((total - discountAmt) * 100) / 100;
+
   const itemCount = items.length;
 
   const conn = await db.pool.connect();
@@ -36,8 +41,9 @@ router.post('/', async (req, res) => {
 
     // Create order
     const { rows: [order] } = await conn.query(
-      'INSERT INTO orders (total, item_count) VALUES ($1, $2) RETURNING id, created_at',
-      [total, itemCount]
+      `INSERT INTO orders (total, discount_type, discount, discount_amount, final_total, item_count)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at`,
+      [total, discountType, discount, discountAmt, finalTotal, itemCount]
     );
 
     // Create order items one by one so each line's sub-items can point at its id.
@@ -79,6 +85,10 @@ router.post('/', async (req, res) => {
     res.status(201).json({
       id: order.id,
       total,
+      discount_type: discountType,
+      discount,
+      discount_amount: discountAmt,
+      final_total: finalTotal,
       item_count: itemCount,
       created_at: order.created_at
     });
@@ -131,7 +141,7 @@ router.post('/:id/customer', async (req, res) => {
 
   const conn = await db.pool.connect();
   try {
-    const { rows: o } = await conn.query('SELECT id, total FROM orders WHERE id = $1', [orderId]);
+    const { rows: o } = await conn.query('SELECT id, final_total FROM orders WHERE id = $1', [orderId]);
     if (!o.length) return res.status(404).json({ error: 'order not found' });
 
     await conn.query('BEGIN');
@@ -146,7 +156,7 @@ router.post('/:id/customer', async (req, res) => {
     await conn.query(
       `INSERT INTO payment (order_id, amount, cash, online, status)
        VALUES ($1, $2, $3, $4, $5)`,
-      [orderId, totalAmt || Number(o[0].total), cashAmt, onlineAmt, 'Completed']
+      [orderId, totalAmt || Number(o[0].final_total), cashAmt, onlineAmt, 'Completed']
     );
 
     await conn.query('COMMIT');

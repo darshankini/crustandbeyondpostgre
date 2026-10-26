@@ -124,14 +124,32 @@ const OrderPreview = ({orderDetails,onClose}) => {
         </div>
 
         {/* Total */}
-        <div className="border-t bg-gray-50 px-6 py-4">
+        <div className="border-t bg-gray-50 px-6 py-4 space-y-1">
+            {Number(order.discount_amount) > 0 && (
+                <>
+                    <div className="flex items-center justify-between text-sm text-gray-600">
+                        <span>Total</span>
+                        <span className="tabular-nums">{money(order.total)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm text-gray-600">
+                        <span>Discount Type</span>
+                        <span>{order.discount_type === 'percent' ? 'Percentage' : 'Flat'}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm text-green-700">
+                        <span>
+                            Discount{order.discount_type === 'percent' ? ` (${order.discount}%)` : ''}
+                        </span>
+                        <span className="tabular-nums">− {money(order.discount_amount)}</span>
+                    </div>
+                </>
+            )}
             <div className="flex items-center justify-between">
                 <span className="text-lg font-semibold text-gray-600">
-                    Total
+                    Final Total
                 </span>
 
                 <span className="text-2xl font-bold text-gray-900">
-                    {money(order.total)}
+                    {money(order.final_total ?? order.total)}
                 </span>
             </div>
         </div>

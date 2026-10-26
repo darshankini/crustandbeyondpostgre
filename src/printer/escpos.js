@@ -1,6 +1,6 @@
 // Builds a 58mm receipt as raw ESC/POS bytes for a thermal printer.
 // 58mm printers fit 32 characters per line in the default font.
-import { itemTotal, unitTotal } from '../components/Layout';
+import { itemTotal, unitTotal, discountAmount } from '../components/Layout';
 import { upiQr } from './upi';
 
 export const SHOP = {
@@ -69,6 +69,8 @@ export function buildReceipt({ order, items, customer }) {
   const line = (s = '') => out.push(...ascii(s).split('').map((c) => c.charCodeAt(0)), 0x0a);
 
   const total = items.reduce((s, i) => s + itemTotal(i), 0);
+  const discountAmt = order?.discount_amount ?? discountAmount(total, order?.discount_type, order?.discount);
+  const finalTotal = order?.final_total ?? total - discountAmt;
   const when = new Date(order?.created_at || Date.now()).toLocaleString();
 
   raw(CMD.init);
@@ -96,8 +98,13 @@ export function buildReceipt({ order, items, customer }) {
     row(`  ${i.qty} x ${amt(unitTotal(i))}`, amt(itemTotal(i))).forEach((l) => line(l));
   }
   line(RULE);
+  if (discountAmt > 0) {
+    row('Total', amt(total)).forEach((l) => line(l));
+    const label = order.discount_type === 'percent' ? `Discount (${order.discount}%)` : 'Discount';
+    row(label, `-${amt(discountAmt)}`).forEach((l) => line(l));
+  }
   raw(CMD.boldOn);
-  row('TOTAL', `Rs.${amt(total)}`).forEach((l) => line(l));
+  row(discountAmt > 0 ? 'FINAL TOTAL' : 'TOTAL', `Rs.${amt(finalTotal)}`).forEach((l) => line(l));
   raw(CMD.boldOff);
   line(RULE);
   raw(CMD.alignCenter);
