@@ -7,6 +7,9 @@ const path = require('path');
 
 const app = express();
 
+// Behind Hostinger's / Vercel's proxy: trust X-Forwarded-Proto so upload URLs come out as https.
+app.set('trust proxy', 1);
+
 app.use(cors());
 app.use(express.json());
 
@@ -33,13 +36,5 @@ app.use((err, _req, res, _next) => {
   });
 });
 
+// Exported without listening so Vercel (api/index.js) can wrap it; server.js starts it everywhere else.
 module.exports = app;
-
-// Only start a local server when running locally
-if (require.main === module) {
-  const PORT = process.env.PORT || 5000;
-
-  app.listen(PORT, () => {
-    console.log(`POS API running on http://localhost:${PORT}`);
-  });
-}

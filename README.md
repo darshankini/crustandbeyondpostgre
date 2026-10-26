@@ -38,6 +38,24 @@ npm install
 npm start         # app on http://localhost:3000
 ```
 
+## Deploying the API on Hostinger
+
+hPanel → Websites → Add Website → **Node.js web app**, import the repo (or upload a zip of `server/`
+without `node_modules`), then set:
+
+| Field | Value |
+|---|---|
+| Framework preset | Express |
+| Root directory | `server` |
+| Node.js version | 22 |
+| Entry file | `server.js` |
+
+Add these under **Environment variables** (`server/.env` is not deployed): `DATABASE_URL`,
+`JWT_SECRET`, `APP_TZ=Asia/Kolkata`. Build the frontend with `REACT_APP_API=https://<api-domain>/api`.
+
+Note: uploaded product images are saved in `server/uploads` inside the deployment, so a redeploy
+removes images uploaded since the last deploy.
+
 ## Default login
 
 ```
