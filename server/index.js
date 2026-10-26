@@ -10,7 +10,15 @@ const app = express();
 // Behind Hostinger's / Vercel's proxy: trust X-Forwarded-Proto so upload URLs come out as https.
 app.set('trust proxy', 1);
 
-app.use(cors());
+// Browsers may only call the API from the POS frontend (plus the local dev server).
+// Extra origins can be added as a comma-separated CORS_ORIGINS env var.
+const ALLOWED_ORIGINS = [
+  'https://divinex.tech',
+  'https://www.divinex.tech',
+  'http://localhost:3000',
+  ...(process.env.CORS_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean),
+];
+app.use(cors({ origin: ALLOWED_ORIGINS }));
 app.use(express.json());
 
 // Serve uploaded product images.

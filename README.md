@@ -51,7 +51,8 @@ without `node_modules`), then set:
 | Entry file | `server.js` |
 
 Add these under **Environment variables** (`server/.env` is not deployed): `DATABASE_URL`,
-`JWT_SECRET`, `APP_TZ=Asia/Kolkata`. Build the frontend with `REACT_APP_API=https://<api-domain>/api`.
+`JWT_SECRET`, `APP_TZ=Asia/Kolkata`. The frontend (https://divinex.tech) calls the API at https://crustandbeyond.divinex.tech/api;
+set `REACT_APP_API` at build time to point it elsewhere, and `CORS_ORIGINS` on the API to allow other sites.
 
 Note: uploaded product images are saved in `server/uploads` inside the deployment, so a redeploy
 removes images uploaded since the last deploy.
