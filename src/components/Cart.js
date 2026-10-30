@@ -98,24 +98,60 @@ export default function Cart({ onClose, onEditOptions }) {
 
 
 
-  // Step 2a: customer skipped — just print.
-  const skipCustomer = useCallback(() => finishAndPrint(null), [finishAndPrint]);
+  // Dialog closed (e.g. to add more items): cancel the unpaid order and keep the cart,
+  // so checking out again creates a fresh order with the updated items.
+  const closeCustomer = useCallback(async () => {
+    setSaving(true);
+    try {
+      await api.del(`/orders/${pending.order.id}`);
+    } catch (e) {
+      toast.error(`Could not cancel order #${pending.order.id}: ${e.message}`);
+    } finally {
+      setSaving(false);
+    }
+    setPending(null);
+  }, [pending]);
 
-  // Step 2b: customer gave details — save them against the order, then print.
-  const saveCustomer = useCallback(
-    async (customer) => {
+  // Step 2a: customer skipped — record the payment, then print.
+  const skipCustomer = useCallback(
+    async (payment) => {
       setSaving(true);
+      try {
+        await api.post(`/orders/${pending.order.id}/payment`, payment);
+      } catch (e) {
+        // Order is already saved; warn but still print the receipt.
+        alert('Could not save payment: ' + e.message);
+      } finally {
+        setSaving(false);
+      }
+      finishAndPrint(null);
+    },
+    [pending, finishAndPrint]
+  );
+
+  // Step 2b: customer gave details — save them against the order, then print
+  // ("Save & Print") or just close and clear the cart ("Save Bill", print = false).
+  const saveCustomer = useCallback(
+    async (customer, print = true) => {
+      setSaving(true);
+      let saved = true;
       try {
         await api.post(`/orders/${pending.order.id}/customer`, customer);
       } catch (e) {
+        saved = false;
         // Order is already saved; warn but still print the receipt.
         alert('Could not save customer details: ' + e.message);
       } finally {
         setSaving(false);
       }
-      finishAndPrint(customer);
+      if (print) return finishAndPrint(customer);
+      // Keep the dialog open on failure so "Save Bill" can be retried.
+      if (!saved) return;
+      setPending(null);
+      clear();
+      toast.success(`Bill #${pending.order.id} saved`);
     },
-    [pending, finishAndPrint]
+    [pending, finishAndPrint, clear]
   );
 
   return (
@@ -304,6 +340,7 @@ export default function Cart({ onClose, onEditOptions }) {
           saving={saving}
           onSkip={skipCustomer}
           onSubmit={saveCustomer}
+          onClose={closeCustomer}
         />
       )}
 

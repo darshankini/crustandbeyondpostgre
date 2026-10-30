@@ -60,7 +60,7 @@ export default function SubitemPicker({ product, subitems, initial, onConfirm, o
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4">
-      <div className="w-full sm:max-w-lg md:max-w-2xl max-h-[90vh] sm:max-h-full flex flex-col overflow-hidden rounded-t-2xl sm:rounded-xl bg-white shadow-2xl">
+      <div className="w-full sm:max-w-lg md:max-w-6xl max-h-[90vh] sm:max-h-full flex flex-col overflow-hidden rounded-t-2xl sm:rounded-xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b px-4 py-3">
           <h2 className="font-semibold">{product.name}</h2>
           <button onClick={onCancel} className="-mr-2 p-2 text-2xl leading-none text-gray-400 hover:text-gray-700" aria-label="Close">
@@ -79,7 +79,7 @@ export default function SubitemPicker({ product, subitems, initial, onConfirm, o
                     : (g.rule.multi ? 'Optional, pick any' : 'Optional, pick 1')}
                 </span>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5">
                 {g.items.map((item) => {
                   const on = !!picked[item.id];
                   return (

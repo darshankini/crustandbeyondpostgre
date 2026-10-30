@@ -5,7 +5,14 @@ import PrinterButton from './PrinterButton';
 import HeaderSearch from './HeaderSearch';
 
 export const money = (n) => '₹ ' + Number(n).toFixed(2);
-export const formattedDate = (n) => new Date(n).toLocaleString();
+export const formattedDate = (n) => new Date(n).toLocaleString('en-IN',{
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  }).replace(/\//g, '-').replace(',', '');
 
 // Products are priced per unit and sold by quantity.
 // Sub-items (bread, sauce, toppings...) add to the unit price, so they're charged once per unit.

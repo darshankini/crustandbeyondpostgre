@@ -8,10 +8,10 @@ const OrderPreview = ({orderDetails,onClose}) => {
         
 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
     {/* Modal */}
-    <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+    <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
 
         {/* Header */}
-        <div className="flex items-center justify-between border-b bg-gray-50 px-6 py-4">
+        <div className="flex shrink-0 items-center justify-between border-b bg-gray-50 px-6 py-4">
             <div>
                 <p className="text-sm font-medium text-gray-500">
                     Order Details
@@ -31,6 +31,9 @@ const OrderPreview = ({orderDetails,onClose}) => {
                 &times;
             </button>
         </div>
+
+        {/* Scrollable body */}
+        <div className="min-h-0 flex-1 overflow-y-auto">
 
         {/* Customer Information */}
         {customer && (
@@ -123,8 +126,10 @@ const OrderPreview = ({orderDetails,onClose}) => {
             </div>
         </div>
 
+        </div>
+
         {/* Total */}
-        <div className="border-t bg-gray-50 px-6 py-4 space-y-1">
+        <div className="shrink-0 border-t bg-gray-50 px-6 py-4 space-y-1">
             {Number(order.discount_amount) > 0 && (
                 <>
                     <div className="flex items-center justify-between text-sm text-gray-600">
@@ -155,7 +160,7 @@ const OrderPreview = ({orderDetails,onClose}) => {
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end border-t px-6 py-4">
+        <div className="flex shrink-0 justify-end border-t px-6 py-4">
             <button
                 onClick={onClose}
                 className="rounded-lg bg-gray-800 px-5 py-2.5

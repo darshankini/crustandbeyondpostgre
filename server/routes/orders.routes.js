@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const db = require('../db');
 const { itemTotal, cleanDiscount, discountAmount } = require('../pricing');
+const { requireAuth } = require('../auth');
 
 // POST /api/orders
 // { items: [{ id, name, price, qty, subitems? }], discount_type?, discount? } — price is per unit, qty is the
@@ -107,6 +108,69 @@ router.post('/', async (req, res) => {
   }
 });
 
+// DELETE /api/orders/:id
+// Cancels an order closed from the customer dialog before it was paid, so the cart can be
+// changed and checked out again. Paid orders (or ones with customer details) are kept.
+router.delete('/:id', requireAuth, async (req, res) => {
+  const orderId = Number(req.params.id);
+  if (!Number.isInteger(orderId) || orderId <= 0) {
+    return res.status(400).json({ error: 'invalid order id' });
+  }
+
+  try {
+    const [rows] = await db.query(
+      `DELETE FROM orders o
+       WHERE o.id = $1
+         AND NOT EXISTS (SELECT 1 FROM payment p WHERE p.order_id = o.id)
+         AND NOT EXISTS (SELECT 1 FROM customers c WHERE c.order_id = o.id)
+       RETURNING o.id`,
+      [orderId]
+    );
+    if (!rows.length) return res.status(409).json({ error: 'order not found or already paid' });
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Cancel order failed:', error);
+    res.status(500).json({ error: error.message || 'Failed to cancel order' });
+  }
+});
+
+// Payment amounts from a request body: blank/undefined -> 0. Returns null if any is not a
+// valid non-negative number.
+function paymentAmounts({ cash, online, total } = {}) {
+  const toAmount = (v) => (v === undefined || v === null || v === '' ? 0 : Number(v));
+  const amounts = { cashAmt: toAmount(cash), onlineAmt: toAmount(online), totalAmt: toAmount(total) };
+  return Object.values(amounts).some((n) => !Number.isFinite(n) || n < 0) ? null : amounts;
+}
+
+// POST /api/orders/:id/payment
+// { cash?, online?, total? } — records the payment for an order without customer details
+// ("Skip & Print"). total defaults to the order's final total.
+router.post('/:id/payment', async (req, res) => {
+  const orderId = Number(req.params.id);
+  if (!Number.isInteger(orderId) || orderId <= 0) {
+    return res.status(400).json({ error: 'invalid order id' });
+  }
+
+  const amounts = paymentAmounts(req.body);
+  if (!amounts) return res.status(400).json({ error: 'invalid payment amount' });
+  const { cashAmt, onlineAmt, totalAmt } = amounts;
+
+  try {
+    const [o] = await db.query('SELECT id, final_total FROM orders WHERE id = $1', [orderId]);
+    if (!o.length) return res.status(404).json({ error: 'order not found' });
+
+    await db.query(
+      `INSERT INTO payment (order_id, amount, cash, online, status)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [orderId, totalAmt || Number(o[0].final_total), cashAmt, onlineAmt, 'Completed']
+    );
+    res.status(201).json({ order_id: orderId });
+  } catch (error) {
+    console.error('Record payment failed:', error);
+    res.status(500).json({ error: error.message || 'Failed to record payment' });
+  }
+});
+
 // POST /api/orders/:id/customer
 // { name?, mobile?, email? } — optional customer details attached to an existing order.
 // The order is already saved at checkout; this only adds contact info if the customer gives it.
@@ -116,18 +180,13 @@ router.post('/:id/customer', async (req, res) => {
     return res.status(400).json({ error: 'invalid order id' });
   }
 
- let { name, mobile, email, cash, online, total } = req.body || {};
+ let { name, mobile, email } = req.body || {};
   name = (typeof name === 'string' && name.trim()) || null;
   email = (typeof email === 'string' && email.trim()) || null;
 
-  // Payment amounts: blank/undefined -> 0, must be valid non-negative numbers.
-  const toAmount = (v) => (v === undefined || v === null || v === '' ? 0 : Number(v));
-  const cashAmt = toAmount(cash);
-  const onlineAmt = toAmount(online);
-  const totalAmt = toAmount(total);
-  if ([cashAmt, onlineAmt, totalAmt].some((n) => !Number.isFinite(n) || n < 0)) {
-    return res.status(400).json({ error: 'invalid payment amount' });
-  }
+  const amounts = paymentAmounts(req.body);
+  if (!amounts) return res.status(400).json({ error: 'invalid payment amount' });
+  const { cashAmt, onlineAmt, totalAmt } = amounts;
 
   // Mobile: optional; if provided it must be exactly 10 digits (matches the DB CHECK).
   let mobileNum = null;
@@ -172,7 +231,7 @@ router.post('/:id/customer', async (req, res) => {
 
 router.get('/',async(req,res) => {
   try{
-    const [orderData] = await db.query('SELECT * FROM orders');
+    const [orderData] = await db.query('SELECT * FROM orders ORDER BY ID DESC');
     if(!orderData.length) return res.status(404).json({error: 'Orders not found'});
     return res.status(200).json(orderData);
   }catch(error){

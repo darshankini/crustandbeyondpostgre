@@ -5,6 +5,7 @@ import ProductsAdmin from './dashboard/ProductsAdmin';
 import CategoriesAdmin from './dashboard/CategoriesAdmin';
 import OrderAdmin from './dashboard/OrderAdmin';
 import OrderPreview from './dashboard/OrderPreview';
+import CustomersAdmin from './dashboard/CustomersAdmin';
 
 function Stat({ label, value, hint }) {
   return (
@@ -81,15 +82,19 @@ export default function Dashboard() {
 
       {/* CRUD */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <ProductsAdmin />
-        </div>
+        
         <div className="lg:col-span-2">
           <OrderAdmin
           isOrderPreview={isOrderPreview}/>
         </div>
         <div>
           <CategoriesAdmin />
+        </div>
+        <div className="lg:col-span-2">
+          <ProductsAdmin />
+        </div>
+        <div>
+          <CustomersAdmin />
         </div>
       </div>
 

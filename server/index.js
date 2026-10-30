@@ -35,6 +35,7 @@ app.use('/api/subitems', require('./routes/subitems.routes'));
 app.use('/api/orders', require('./routes/orders.routes'));
 app.use('/api/carts', require('./routes/carts.routes'));
 app.use('/api/dashboard', require('./routes/dashboard.routes'));
+app.use('/api/customers', require('./routes/customers.routes'));
 
 app.use((err, _req, res, _next) => {
   console.error(err);

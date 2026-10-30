@@ -12,6 +12,9 @@ export default function ProductsAdmin() {
   const [form, setForm] = useState(EMPTY);
   const [editingId, setEditingId] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const productPerPage = 10;
 
   const load = useCallback(() => {
     Promise.all([api.get('/products'), api.get('/categories'), api.get('/subitems')])
@@ -84,6 +87,33 @@ export default function ProductsAdmin() {
 
   const input = 'rounded-md border px-3 py-1.5 text-sm outline-none focus:border-brand';
 
+  const totalPages = Math.ceil(rows.length / productPerPage);
+  // Stay in range when a delete empties the last page
+  const page = Math.min(currentPage, Math.max(totalPages, 1));
+  const startIndex = ((page - 1) * productPerPage) + 1;
+  const endIndex = productPerPage * page;
+  const currentProducts = rows.slice(startIndex - 1, endIndex);
+
+  const goToPage = (p) => {
+    if (p < 1 || p > totalPages) return;
+    setCurrentPage(p);
+  };
+
+  const maxVisiblePages = 5;
+
+  let startPage = Math.max(1, page - Math.floor(maxVisiblePages / 2));
+  let endPage = startPage + maxVisiblePages - 1;
+
+  if (endPage > totalPages) {
+    endPage = totalPages;
+    startPage = Math.max(1, endPage - maxVisiblePages + 1);
+  }
+
+  const visiblePages = Array.from(
+    { length: endPage - startPage + 1 },
+    (_, index) => startPage + index
+  );
+
   return (
     <div className="bg-white rounded-lg shadow p-4">
       <h3 className="font-semibold mb-3">Products</h3>
@@ -143,7 +173,7 @@ export default function ProductsAdmin() {
             <tr><th className="px-3 py-2 text-center">Image</th><th className="px-3 py-2 text-center">Item</th><th className="px-3 text-center">Category</th><th className="px-3 text-center">Price</th><th className="px-3 text-center">Sub-items</th><th className='px-3 text-center'>Action</th></tr>
           </thead>
           <tbody className="divide-y">
-            {rows.map((p) => (
+            {currentProducts.map((p) => (
               <tr key={p.id}>
                 <td className="px-3 py-2 flex items-center gap-2 justify-center">
                   {p.image && <img src={p.image} alt="" className="h-8 w-8 rounded object-cover items-center" />}
@@ -162,6 +192,79 @@ export default function ProductsAdmin() {
           </tbody>
         </table>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+          <p className="text-sm text-gray-500">
+            Showing{' '}
+            <span className="font-medium text-gray-700">{startIndex}</span>
+            {' - '}
+            <span className="font-medium text-gray-700">{Math.min(endIndex, rows.length)}</span>
+            {' of '}
+            <span className="font-medium text-gray-700">{rows.length}</span>
+          </p>
+
+          <div className="flex items-center gap-1">
+            {/* Previous */}
+            <button
+              onClick={() => goToPage(page - 1)}
+              disabled={page === 1}
+              className="rounded-md border px-3 py-1.5 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              ←
+            </button>
+
+            {/* First page */}
+            {startPage > 1 && (
+              <>
+                <button
+                  onClick={() => goToPage(1)}
+                  className="min-w-9 rounded-md border px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+                >
+                  1
+                </button>
+                {startPage > 2 && <span className="px-2 text-gray-400">...</span>}
+              </>
+            )}
+
+            {/* Visible pages */}
+            {visiblePages.map((p) => (
+              <button
+                key={p}
+                onClick={() => goToPage(p)}
+                className={`min-w-9 rounded-md px-3 py-1.5 text-sm transition ${
+                  page === p ? 'bg-gray-800 text-white' : 'border text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {p}
+              </button>
+            ))}
+
+            {/* Last page */}
+            {endPage < totalPages && (
+              <>
+                {endPage < totalPages - 1 && <span className="px-2 text-gray-400">...</span>}
+                <button
+                  onClick={() => goToPage(totalPages)}
+                  className="min-w-9 rounded-md border px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+                >
+                  {totalPages}
+                </button>
+              </>
+            )}
+
+            {/* Next */}
+            <button
+              onClick={() => goToPage(page + 1)}
+              disabled={page === totalPages}
+              className="rounded-md border px-3 py-1.5 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              →
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -3,8 +3,9 @@ import { money } from './Layout';
 
 // Post-checkout dialog. The order is already saved; this only collects optional
 // customer details. "Skip & Print" prints without details; "Save & Print" saves
-// the details first. Responsive: centered card on desktop, bottom sheet on mobile.
-export default function CustomerModal({ order, total, onSkip, onSubmit, saving }) {
+// the details first; "Save Bill" saves them without printing.
+// Responsive: centered card on desktop, bottom sheet on mobile.
+export default function CustomerModal({ order, total, onSkip, onSubmit, onClose, saving }) {
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
   const [email, setEmail] = useState('');
@@ -16,13 +17,14 @@ export default function CustomerModal({ order, total, onSkip, onSubmit, saving }
   const paymentModes = ['Cash','Online','Split'];
   
 
-  const submit = (e) => {
+  // print: false for "Save Bill" (save only), true for "Save & Print" / Enter.
+  const submit = (e, print = true) => {
     e.preventDefault();
     const digits = mobile.replace(/\D/g, '');
     if (digits && digits.length !== 10) return setError('Mobile must be 10 digits.');
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setError('Enter a valid email.');
     setError('');
-    onSubmit({ name: name.trim(), mobile: digits, email: email.trim(),cash:cash,online:online,order:order,total:total });
+    onSubmit({ name: name.trim(), mobile: digits, email: email.trim(),cash:cash,online:online,order:order,total:total }, print);
   };
 
   const field =
@@ -34,11 +36,23 @@ export default function CustomerModal({ order, total, onSkip, onSubmit, saving }
         onSubmit={submit}
         className="w-full sm:max-w-sm bg-white rounded-t-2xl sm:rounded-xl shadow-xl p-5 space-y-4 max-h-[90vh] overflow-y-auto"
       >
-        <div>
-          <h2 className="text-lg font-bold">Customer details</h2>
-          <p className="text-sm text-gray-500">
-            Order #{order?.id} · {money(total)} — optional, you can skip.
-          </p>
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h2 className="text-lg font-bold">Customer details</h2>
+            <p className="text-sm text-gray-500">
+              Order #{order?.id} · {money(total)} — optional, you can skip.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            title="Close and go back to the cart"
+            aria-label="Close"
+            className="-mr-1 -mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-2xl text-gray-400 transition hover:bg-gray-200 hover:text-gray-700 disabled:opacity-40"
+          >
+            &times;
+          </button>
         </div>
 
         {error && (
@@ -107,7 +121,7 @@ export default function CustomerModal({ order, total, onSkip, onSubmit, saving }
         <div className="grid grid-cols-2 gap-2 pt-1">
           <button
             type="button"
-            onClick={onSkip}
+            onClick={() => onSkip({ cash, online, total })}
             disabled={saving}
             className="py-2.5 rounded-md bg-gray-200 hover:bg-gray-300 font-medium disabled:opacity-40"
           >
@@ -121,6 +135,16 @@ export default function CustomerModal({ order, total, onSkip, onSubmit, saving }
             {saving ? 'Saving…' : 'Save & Print'}
           </button>
         </div>
+        <div className="grid grid-cols-1 gap-2 pt-1">
+        <button
+            type="button"
+            disabled={saving}
+            onClick={(e) => submit(e, false)}
+            className="py-2.5 rounded-md bg-brand hover:bg-brand-dark text-white font-semibold disabled:opacity-40"
+          >
+            {saving ? 'Saving…' : 'Save Bill'}
+          </button>
+          </div>
       </form>
     </div>
   );

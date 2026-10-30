@@ -30,7 +30,7 @@ function ProductCard({ product, qty, onAdd, onDec, onInc }) {
         </div>
         <div className="mt-1.5 h-9 flex items-center">
           {hasOptions ? (
-            <button onClick={() => onAdd(product)} className="w-full h-9 text-sm text-white bg-brand rounded-full font-semibold px-3 hover:bg-brand-dark">+ Choose options</button>
+            <button onClick={() => onAdd(product)} className="w-full h-9 text-xs text-white bg-brand rounded-full font-semibold px-3 hover:bg-brand-dark">+ Choose options</button>
           ) : qty > 0 ? (
             <div className="w-full flex items-center justify-between text-white">
               <button onClick={() => onDec(key)} className="h-9 w-9 rounded bg-brand hover:bg-brand-dark leading-none">−</button>
