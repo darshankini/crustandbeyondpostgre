@@ -9,6 +9,10 @@
 # backend env (contains secrets)
 /server/.env
 
+# database backups (contain customer data)
+/server/backups/
+/server/pos_backup.sql
+
 # testing
 /coverage
 

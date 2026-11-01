@@ -1,4 +1,8 @@
+import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, Navigate, useLocation } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import { api } from '../api';
+import { PLATFORMS } from '../aggregators';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import PrinterButton from './PrinterButton';
@@ -30,9 +34,54 @@ export const discountAmount = (total, type, value) => {
   return Math.min(Math.round(off), total);
 };
 
+// Short two-tone chime for a new online order (Web Audio, no sound file needed).
+function chime() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [880, 1175].forEach((f, n) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const at = ctx.currentTime + n * 0.25;
+      osc.frequency.value = f;
+      gain.gain.setValueAtTime(0.25, at);
+      gain.gain.exponentialRampToValueAtTime(0.001, at + 0.4);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(at);
+      osc.stop(at + 0.4);
+    });
+  } catch {}
+}
+
+// New-order counts per aggregator, polled so a Zomato / Swiggy order is noticed from any page.
+// Chimes and toasts when a platform's count goes up.
+function useOnlineOrderCounts() {
+  const [counts, setCounts] = useState({});
+  const prev = useRef(null);
+  useEffect(() => {
+    const poll = () =>
+      api.get('/aggregators/summary').then((s) => {
+        if (prev.current) {
+          for (const [p, c] of Object.entries(s)) {
+            if (c.new > (prev.current[p]?.new || 0)) {
+              chime();
+              toast(`New ${PLATFORMS[p]?.label || p} order`, { icon: '🔔' });
+            }
+          }
+        }
+        prev.current = s;
+        setCounts(s);
+      }).catch(() => {});
+    poll();
+    const t = setInterval(poll, 20000);
+    return () => clearInterval(t);
+  }, []);
+  return counts;
+}
+
 function Header() {
   const { user, logout } = useAuth();
   const cart = useCart();
+  const online = useOnlineOrderCounts();
   const linkCls = ({ isActive }) =>
     'px-3 py-1.5 rounded-md text-sm font-medium ' +
     (isActive ? 'bg-white text-brand' : 'text-white/90 hover:bg-white/10');
@@ -45,6 +94,16 @@ function Header() {
       </Link>
       <nav className="flex gap-1">
         <NavLink to="/" end className={linkCls}>POS</NavLink>
+        {Object.entries(PLATFORMS).map(([key, p]) => (
+          <NavLink key={key} to={`/online/${key}`} className={linkCls}>
+            {p.label}
+            {online[key]?.new > 0 && (
+              <span className="ml-1.5 inline-flex min-w-[1.25rem] justify-center rounded-full bg-white px-1 text-xs font-bold animate-pulse" style={{ color: p.color }}>
+                {online[key].new}
+              </span>
+            )}
+          </NavLink>
+        ))}
         <NavLink to="/dashboard" className={linkCls}>Dashboard</NavLink>
       </nav>
       <HeaderSearch className="order-last w-full md:order-none md:w-auto md:flex-1 md:max-w-md" />

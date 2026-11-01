@@ -24,9 +24,9 @@ const pool = url
   : new Pool({
       host,
       port: Number(process.env.DB_PORT) || 5432,
-      user: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD || '',
-      database: process.env.DB_NAME || 'postgres',
+      user: process.env.DB_USER || process.env.DATABASE_USERNAME || 'postgres',
+      password: process.env.DB_PASSWORD || process.env.DATABASE_PASSWORD || '',
+      database: process.env.DB_NAME || process.env.DATABASE || 'postgres',
       ...options,
     });
 

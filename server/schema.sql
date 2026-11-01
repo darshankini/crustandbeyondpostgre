@@ -139,6 +139,82 @@ CREATE TABLE IF NOT EXISTS payment (
 );
 CREATE INDEX IF NOT EXISTS idx_payment_order ON payment (order_id);
 
+-- Where an order came from: 'pos' (counter) or an aggregator ('zomato', 'swiggy').
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS source VARCHAR(20) NOT NULL DEFAULT 'pos';
+
+-- Online orders pushed by Zomato / Swiggy. A POS order (orders row) is created when the
+-- order is accepted, so accepted aggregator sales show up in the dashboard and order list.
+CREATE TABLE IF NOT EXISTS aggregator_orders (
+  id                SERIAL PRIMARY KEY,
+  platform          VARCHAR(20)   NOT NULL,                 -- 'zomato' | 'swiggy'
+  external_order_id VARCHAR(100)  NOT NULL,                 -- the platform's order id
+  outlet_id         VARCHAR(100),
+  status            VARCHAR(20)   NOT NULL DEFAULT 'placed',
+    -- placed -> accepted -> ready -> picked_up -> delivered; or rejected / cancelled
+  order_type        VARCHAR(20),                            -- 'delivery' | 'pickup'
+  customer_name     VARCHAR(150),
+  customer_phone    VARCHAR(30),                            -- platforms usually send a masked number
+  delivery_address  TEXT,
+  instructions      TEXT,
+  subtotal          NUMERIC(10,2) NOT NULL DEFAULT 0,       -- items
+  packaging_charge  NUMERIC(10,2) NOT NULL DEFAULT 0,
+  delivery_charge   NUMERIC(10,2) NOT NULL DEFAULT 0,
+  taxes             NUMERIC(10,2) NOT NULL DEFAULT 0,
+  discount          NUMERIC(10,2) NOT NULL DEFAULT 0,       -- merchant-funded discount
+  total             NUMERIC(10,2) NOT NULL DEFAULT 0,       -- what the customer paid
+  payment_mode      VARCHAR(20),                            -- 'prepaid' | 'cod'
+  prep_time         INT,                                    -- minutes promised on accept
+  reject_reason     TEXT,
+  rider_name        VARCHAR(150),
+  rider_phone       VARCHAR(30),
+  order_id          INT NULL
+    CONSTRAINT fk_agg_order REFERENCES orders(id) ON DELETE SET NULL,
+  raw_payload       JSONB,                                  -- last payload received, for debugging
+  placed_at         TIMESTAMPTZ   DEFAULT now(),
+  accepted_at       TIMESTAMPTZ,
+  ready_at          TIMESTAMPTZ,
+  updated_at        TIMESTAMPTZ   DEFAULT now(),
+  CONSTRAINT uq_agg_platform_order UNIQUE (platform, external_order_id)
+);
+CREATE INDEX IF NOT EXISTS idx_agg_orders_status ON aggregator_orders (platform, status);
+CREATE INDEX IF NOT EXISTS idx_agg_orders_placed ON aggregator_orders (placed_at);
+
+CREATE TABLE IF NOT EXISTS aggregator_order_items (
+  id                  SERIAL PRIMARY KEY,
+  aggregator_order_id INT NOT NULL
+    CONSTRAINT fk_agg_items_order REFERENCES aggregator_orders(id) ON DELETE CASCADE,
+  external_item_id    VARCHAR(100),
+  product_id          INT NULL,                              -- matched POS product, if any
+  name                VARCHAR(150)  NOT NULL,
+  price               NUMERIC(10,2) NOT NULL DEFAULT 0,      -- unit price incl. add-ons
+  qty                 INT           NOT NULL DEFAULT 1,
+  amount              NUMERIC(10,2) NOT NULL DEFAULT 0,
+  addons              JSONB         NOT NULL DEFAULT '[]',   -- [{ name, price }]
+  instructions        TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_agg_items_order ON aggregator_order_items (aggregator_order_id);
+
+-- Platform menu item id -> POS product. Rows missing here fall back to matching by name.
+CREATE TABLE IF NOT EXISTS aggregator_menu_map (
+  platform         VARCHAR(20)  NOT NULL,
+  external_item_id VARCHAR(100) NOT NULL,
+  product_id       INT NOT NULL
+    CONSTRAINT fk_agg_map_product REFERENCES products(id) ON DELETE CASCADE,
+  PRIMARY KEY (platform, external_item_id)
+);
+
+-- Every status change, from the platform or from the POS.
+CREATE TABLE IF NOT EXISTS aggregator_status_log (
+  id                  SERIAL PRIMARY KEY,
+  aggregator_order_id INT NOT NULL
+    CONSTRAINT fk_agg_log_order REFERENCES aggregator_orders(id) ON DELETE CASCADE,
+  status              VARCHAR(20) NOT NULL,
+  source              VARCHAR(20) NOT NULL,                  -- 'platform' | 'pos'
+  note                TEXT,
+  created_at          TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_agg_log_order ON aggregator_status_log (aggregator_order_id);
+
 -- The API connects directly (not via the Supabase REST API), so block anonymous
 -- REST access to these tables by enabling RLS with no policies.
 ALTER TABLE users                  ENABLE ROW LEVEL SECURITY;
@@ -153,6 +229,10 @@ ALTER TABLE cart                   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cart_items             ENABLE ROW LEVEL SECURITY;
 ALTER TABLE customers              ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payment                ENABLE ROW LEVEL SECURITY;
+ALTER TABLE aggregator_orders      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE aggregator_order_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE aggregator_menu_map    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE aggregator_status_log  ENABLE ROW LEVEL SECURITY;
 
 -- Seed categories (admin user + products come from `npm run seed`).
 INSERT INTO categories (name) VALUES

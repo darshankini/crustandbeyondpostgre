@@ -19,7 +19,8 @@ const ALLOWED_ORIGINS = [
   ...(process.env.CORS_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean),
 ];
 app.use(cors({ origin: ALLOWED_ORIGINS }));
-app.use(express.json());
+// Keep the raw body too: aggregator webhooks are signed over the exact bytes sent.
+app.use(express.json({ verify: (req, _res, buf) => { req.rawBody = buf; } }));
 
 // Serve uploaded product images.
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -36,6 +37,7 @@ app.use('/api/orders', require('./routes/orders.routes'));
 app.use('/api/carts', require('./routes/carts.routes'));
 app.use('/api/dashboard', require('./routes/dashboard.routes'));
 app.use('/api/customers', require('./routes/customers.routes'));
+app.use('/api/aggregators', require('./routes/aggregator.routes'));
 
 app.use((err, _req, res, _next) => {
   console.error(err);

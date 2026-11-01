@@ -5,6 +5,7 @@ import Layout from './components/Layout';
 import Login from './pages/Login';
 import POS from './pages/POS';
 import Dashboard from './pages/Dashboard';
+import OnlineOrders from './pages/OnlineOrders';
 import { Toaster } from "react-hot-toast";
 
 export default function App() {
@@ -18,6 +19,7 @@ export default function App() {
             <Route path="/login" element={<Login />} />
             <Route element={<Layout />}>
               <Route index element={<POS />} />
+              <Route path="online/:platform" element={<OnlineOrders />} />
               <Route path="dashboard" element={<Dashboard />} />
             </Route>
           </Routes>
