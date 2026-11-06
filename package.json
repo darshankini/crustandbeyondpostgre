@@ -27,7 +27,10 @@
   },
   "scripts": {
     "start": "react-scripts start",
+    "start:staging": "env-cmd -f .env.staging react-scripts start",
     "build": "react-scripts build",
+    "build:staging": "env-cmd -f .env.staging react-scripts build",
+    "vercel-build": "env-cmd -f .env.staging --no-override react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
@@ -51,6 +54,7 @@
   },
   "devDependencies": {
     "autoprefixer": "^10.5.4",
+    "env-cmd": "^10.1.0",
     "postcss": "^8.5.26",
     "tailwindcss": "^3.4.19"
   }

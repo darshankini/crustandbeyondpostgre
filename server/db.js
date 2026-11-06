@@ -1,28 +1,31 @@
 const { Pool, types } = require('pg');
 require('dotenv').config();
 
-// pg returns NUMERIC / BIGINT (COUNT, SUM) as strings and DATE as a local-midnight Date.
-// Parse them so the API keeps returning plain numbers and 'YYYY-MM-DD' days.
 types.setTypeParser(1700, (v) => parseFloat(v)); // NUMERIC
 types.setTypeParser(20, (v) => parseInt(v, 10)); // BIGINT
 types.setTypeParser(1082, (v) => v);             // DATE
 
-// Single shared pool, reused across requests.
-// DATABASE_URL (postgresql://user:pass@host:5432/db, e.g. the Supabase connection string)
-// wins if set; otherwise the DB_* vars are used.
-const url = process.env.DATABASE_URL;
+const url = (process.env.VERCEL && process.env.DATABASE_URL_POOLED)
+  || process.env.DATABASE_URL
+  || process.env.POSTGRES_URL;
 const host = url ? new URL(url).hostname : process.env.DB_HOST || 'localhost';
 const isLocal = ['localhost', '127.0.0.1', '::1'].includes(host);
 
-// On Vercel every function instance has its own pool, and many instances can run at once,
-// so keep each small (use Supabase's transaction pooler URL, port 6543, there).
+function withoutSslMode(connectionString) {
+  const u = new URL(connectionString);
+  u.searchParams.delete('sslmode');
+  return u.toString();
+}
+
 const options = {
+  // Every Vercel function instance has its own pool and many can run at once, so keep it small.
   max: Number(process.env.DB_POOL_MAX) || (process.env.VERCEL ? 3 : 10),
-  ssl: isLocal ? false : { rejectUnauthorized: false }, // Supabase requires SSL
+  connectionTimeoutMillis: 15000,
+  ssl: isLocal ? false : { rejectUnauthorized: false },
 };
 
 const pool = url
-  ? new Pool({ connectionString: url, ...options })
+  ? new Pool({ connectionString: withoutSslMode(url), ...options })
   : new Pool({
       host,
       port: Number(process.env.DB_PORT) || 5432,
@@ -68,9 +71,15 @@ async function transaction(fn) {
   }
 }
 
+// Which database the API uses, host and name only (never the password), for logs / health.
+function describe() {
+  return url ? `${host} (${new URL(url).pathname.slice(1)})` : `${host}:${process.env.DB_PORT || 5432} (${process.env.DB_NAME || 'postgres'})`;
+}
+
 module.exports = {
   query,
   transaction,
+  describe,
   pool,               // raw pg pool (use pool.connect() + BEGIN/COMMIT for transactions)
   TZ,
   end: () => pool.end(),

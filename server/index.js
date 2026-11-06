@@ -5,13 +5,17 @@ const express = require('express');
 const { UPLOAD_DIR } = require('./utils/uploads');
 const cors = require('./middleware/cors');
 const rateLimit = require('./middleware/rateLimit');
+const db = require('./db');
 
 const app = express();
+
+// Which environment this API is: APP_ENV, else staging on Vercel, production elsewhere (Hostinger).
+const APP_ENV = process.env.APP_ENV || (process.env.VERCEL ? 'staging' : 'production');
 
 // Behind Hostinger's / Vercel's proxy: trust X-Forwarded-Proto so upload URLs come out as https.
 app.set('trust proxy', 1);
 
-app.use(cors);
+app.use(cors); // allowed origins: middleware/cors.js
 app.use(express.json({ limit: '200kb' }));
 
 // Rate limits per client IP: a general cap on the whole API, a tight one on login attempts.
@@ -31,7 +35,18 @@ app.use('/uploads', express.static(UPLOAD_DIR, {
 }));
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true });
+  res.json({ ok: true, env: APP_ENV });
+});
+
+// GET /api/health/db — is the database reachable? (shows host + database name, never credentials)
+app.get('/api/health/db', async (_req, res) => {
+  const started = Date.now();
+  try {
+    await db.pool.query('SELECT 1');
+    res.json({ ok: true, env: APP_ENV, database: db.describe(), ms: Date.now() - started });
+  } catch (error) {
+    res.status(503).json({ ok: false, env: APP_ENV, database: db.describe(), error: error.message });
+  }
 });
 
 app.use('/api/auth', require('./routes/auth.routes'));
