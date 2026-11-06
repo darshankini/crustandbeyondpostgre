@@ -1,11 +1,13 @@
 import toast from "react-hot-toast";
 
-// Tiny fetch wrapper that attaches the JWT and parses JSON.
-// REACT_APP_API overrides; otherwise production builds use the Hostinger API, dev uses the local server.
-const BASE = process.env.REACT_APP_API
-  || (process.env.NODE_ENV === 'production'
-    ? 'https://crustandbeyond.divinex.tech/api'
-    : 'http://localhost:5000/api');
+const API_URLS = {
+  production: 'https://crustandbeyond.divinex.tech/api',     // Hostinger
+  staging: 'https://crustandbeyondpostgre.vercel.app/api',   // Vercel + Prisma Postgres
+  development: 'http://localhost:5000/api',                  // local server/
+};
+export const APP_ENV = process.env.REACT_APP_ENV
+  || (process.env.NODE_ENV === 'production' ? 'production' : 'development');
+const BASE = process.env.REACT_APP_API || API_URLS[APP_ENV] || API_URLS.development;
 
 export function getToken() {
   return localStorage.getItem('pos_token');

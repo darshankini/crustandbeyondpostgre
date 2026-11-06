@@ -28,3 +28,6 @@ yarn-error.log*
 
 .vercel
 .env*
+# Staging frontend settings are public (no secrets) and needed by Vercel builds.
+!.env.staging
+!.env.example
