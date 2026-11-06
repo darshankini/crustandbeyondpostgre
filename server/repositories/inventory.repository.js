@@ -113,7 +113,7 @@ async function recipeNeeds(sales, conn = pool) {
     `SELECT ri.raw_product_id, rp.product_unit AS unit, SUM(ri.qty * t.qty)::int AS qty
      FROM unnest($1::int[], $2::int[]) AS t(product_id, qty)
      JOIN recipe r        ON r.product_id = t.product_id
-     JOIN raw_items ri    ON ri.recipe_id = r.id
+     JOIN recipe_items ri    ON ri.recipe_id = r.id
      JOIN raw_products rp ON rp.id = ri.raw_product_id
      GROUP BY ri.raw_product_id, rp.product_unit`,
     [sales.map((s) => s.product_id), sales.map((s) => s.qty)]

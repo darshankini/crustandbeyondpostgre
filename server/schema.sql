@@ -188,6 +188,12 @@ CREATE TABLE IF NOT EXISTS recipe (
 );
 
 -- Raw products used to make ONE unit of the recipe's product (e.g. 40 gram maida).
+-- Was called raw_items: keep the recipes of databases created before the rename.
+DO $$ BEGIN
+  IF to_regclass('public.raw_items') IS NOT NULL AND to_regclass('public.recipe_items') IS NULL THEN
+    ALTER TABLE raw_items RENAME TO recipe_items;
+  END IF;
+END $$;
 CREATE TABLE IF NOT EXISTS recipe_items (
   id             SERIAL PRIMARY KEY,
   recipe_id      INT NOT NULL
@@ -198,6 +204,15 @@ CREATE TABLE IF NOT EXISTS recipe_items (
   unit           stock_unit NOT NULL DEFAULT 'gram',
   CONSTRAINT uq_recipe_items UNIQUE (recipe_id, raw_product_id)
 );
+-- A database that got the new empty table next to the old one: move the old lines over.
+DO $$ BEGIN
+  IF to_regclass('public.raw_items') IS NOT NULL THEN
+    INSERT INTO recipe_items (recipe_id, raw_product_id, qty, unit)
+    SELECT recipe_id, raw_product_id, qty, unit FROM raw_items
+    ON CONFLICT (recipe_id, raw_product_id) DO NOTHING;
+    DROP TABLE raw_items;
+  END IF;
+END $$;
 
 -- Purchases (supplier invoices)
 CREATE TABLE IF NOT EXISTS purchase (
@@ -260,8 +275,8 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS reservation_key VARCHAR(64) NULL;
 
 -- Indexes for the inventory module's joins, lookups and list ordering.
 -- (Primary keys and UNIQUE columns — raw_products.product_name, inventory.raw_product_id,
---  recipe.product_id, raw_items (recipe_id, raw_product_id) — are indexed already.)
-CREATE INDEX IF NOT EXISTS idx_raw_items_raw      ON raw_items (raw_product_id);       -- delete/usage checks on a raw product
+--  recipe.product_id, recipe_items (recipe_id, raw_product_id) — are indexed already.)
+CREATE INDEX IF NOT EXISTS idx_recipe_items_raw   ON recipe_items (raw_product_id);      -- delete/usage checks on a raw product
 CREATE INDEX IF NOT EXISTS idx_pi_raw             ON purchase_items (raw_product_id);  -- delete/usage checks on a raw product
 CREATE INDEX IF NOT EXISTS idx_pi_expiry          ON purchase_items (expiry_date) WHERE expiry_date IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_purchase_list      ON purchase (invoice_date DESC NULLS LAST, id DESC); -- purchase list order
@@ -290,7 +305,7 @@ ALTER TABLE payment                ENABLE ROW LEVEL SECURITY;
 ALTER TABLE raw_products           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inventory              ENABLE ROW LEVEL SECURITY;
 ALTER TABLE recipe                 ENABLE ROW LEVEL SECURITY;
-ALTER TABLE raw_items              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE recipe_items           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE purchase               ENABLE ROW LEVEL SECURITY;
 ALTER TABLE purchase_items         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE order_inventory        ENABLE ROW LEVEL SECURITY;

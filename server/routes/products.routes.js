@@ -45,7 +45,7 @@ router.get('/', async (req, res) => {
       -- NULL when the product has no recipe, i.e. stock isn't tracked for it.
       (SELECT MIN(COALESCE(i.product_qty, 0) / ri.qty)
          FROM recipe r
-         JOIN raw_items ri ON ri.recipe_id = r.id
+         JOIN recipe_items ri ON ri.recipe_id = r.id
          LEFT JOIN inventory i ON i.raw_product_id = ri.raw_product_id
         WHERE r.product_id = p.id) AS stock_available
     FROM products p

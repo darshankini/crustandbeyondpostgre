@@ -53,7 +53,7 @@ async function isUsed(id, conn = pool) {
   const { rows } = await conn.query(
     `SELECT EXISTS (SELECT 1 FROM inventory       WHERE raw_product_id = $1)
          OR EXISTS (SELECT 1 FROM purchase_items  WHERE raw_product_id = $1)
-         OR EXISTS (SELECT 1 FROM raw_items       WHERE raw_product_id = $1)
+         OR EXISTS (SELECT 1 FROM recipe_items       WHERE raw_product_id = $1)
          OR EXISTS (SELECT 1 FROM order_inventory WHERE raw_product_id = $1) AS used`,
     [id]
   );

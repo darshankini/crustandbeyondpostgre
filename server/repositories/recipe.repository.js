@@ -1,4 +1,4 @@
-// Database access for recipe / raw_items. Every function takes an optional `conn`
+// Database access for recipe / recipe_items. Every function takes an optional `conn`
 // (a client from db.transaction) and falls back to the shared pool.
 const { pool } = require('../db');
 
@@ -8,7 +8,7 @@ async function list(conn = pool) {
             COUNT(ri.id)::int AS item_count
      FROM recipe r
      JOIN products p ON p.id = r.product_id
-     LEFT JOIN raw_items ri ON ri.recipe_id = r.id
+     LEFT JOIN recipe_items ri ON ri.recipe_id = r.id
      GROUP BY r.id, p.name
      ORDER BY p.name`
   );
@@ -30,7 +30,7 @@ async function items(recipeId, conn = pool) {
   const { rows } = await conn.query(
     `SELECT ri.id, ri.raw_product_id, rp.product_name,
             ri.qty AS product_qty, ri.unit AS product_unit
-     FROM raw_items ri
+     FROM recipe_items ri
      JOIN raw_products rp ON rp.id = ri.raw_product_id
      WHERE ri.recipe_id = $1
      ORDER BY ri.id`,
@@ -57,7 +57,7 @@ async function update(id, productId, conn = pool) {
 
 async function insertItems(recipeId, lines, conn = pool) {
   await conn.query(
-    `INSERT INTO raw_items (recipe_id, raw_product_id, qty, unit)
+    `INSERT INTO recipe_items (recipe_id, raw_product_id, qty, unit)
      SELECT $1::int, * FROM unnest($2::int[], $3::int[], $4::stock_unit[])`,
     [
       recipeId,
@@ -69,7 +69,7 @@ async function insertItems(recipeId, lines, conn = pool) {
 }
 
 async function deleteItems(recipeId, conn = pool) {
-  await conn.query('DELETE FROM raw_items WHERE recipe_id = $1', [recipeId]);
+  await conn.query('DELETE FROM recipe_items WHERE recipe_id = $1', [recipeId]);
 }
 
 async function remove(id, conn = pool) {
