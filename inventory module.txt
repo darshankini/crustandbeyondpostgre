@@ -1,0 +1,64 @@
+inventory module
+
+master of raw products
+raw_products
+id primary key not null eg 1
+product_name varchar 255 not null unique
+product_image varchar 255 nullable
+created_at timestamp
+
+
+
+inventory table 
+id primary key not null eg 1
+raw_product_id int 11 not null unique maida
+product_qty int 11 not null 30 
+product_unit enum gram/ml not null 30000
+created_at timestamp
+
+recipe
+id primary key not null 1
+product_id int 11 unique not null 2
+
+raw_items
+id primary key not null 1
+recipe_id int 11 not null 3
+raw_product_id int 11 not null 1
+qty 100 int 11 not null 40 
+unit enum gram/ml not null gram
+
+1 3 1 40 gram eg its for maida
+2 3 2 50 gram eg its for potato 
+
+purchase master
+purchase 
+id primary key not null
+raw_product_id int 11 not null
+product_qty int 11 not null
+product_unit enum gram/ml not null default gram
+expiry_date date nullable
+created_at timestamp
+
+
+
+component
+ purchase 
+    ui/
+        purchase list ( table view) - purchaseList.js
+            id 
+            invoice no
+            purchase date 
+            purchase details modal view on click of preview button or link - purchasePreview.js
+                id 
+                raw_item_name
+                qty + gram/unit 
+                subtotal
+                total
+                
+    hooks/
+    api/
+        addPurchase - Post - request payload (raw_item_id,)
+        
+    services/
+    validation
+    utils/

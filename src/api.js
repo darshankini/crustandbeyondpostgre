@@ -27,6 +27,13 @@ function handleSessionExpired(){
   },1200)
 }
 
+// Error carrying the server's per-field messages (e.g. { 'items[0].product_qty': '...' }) when it sent any.
+function apiError(data, fallback) {
+  const err = new Error(data.error || fallback);
+  if (data.errors) err.errors = data.errors;
+  return err;
+}
+
 async function request(path, { method = 'GET', body } = {}) {
   const headers = { 'Content-Type': 'application/json' };
   const token = getToken();
@@ -44,7 +51,7 @@ async function request(path, { method = 'GET', body } = {}) {
   }
 
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  if (!res.ok) throw apiError(data, `Request failed (${res.status})`);
   return data;
 }
 
@@ -63,7 +70,7 @@ async function upload(path, formData) {
   }
 
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `Upload failed (${res.status})`);
+  if (!res.ok) throw apiError(data, `Upload failed (${res.status})`);
   return data;
 }
 

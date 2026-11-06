@@ -1,0 +1,10 @@
+# Not needed to build or run on Vercel (and kept off Vercel's servers).
+build
+node_modules
+server/node_modules
+server/.env
+server/uploads
+server/backups
+server/pos_backup.sql
+1.pdf
+inventory module.txt

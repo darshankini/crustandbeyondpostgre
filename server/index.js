@@ -2,27 +2,33 @@ require('dotenv').config();
 require('express-async-errors');
 
 const express = require('express');
-const cors = require('cors');
-const path = require('path');
+const { UPLOAD_DIR } = require('./utils/uploads');
+const cors = require('./middleware/cors');
+const rateLimit = require('./middleware/rateLimit');
 
 const app = express();
 
 // Behind Hostinger's / Vercel's proxy: trust X-Forwarded-Proto so upload URLs come out as https.
 app.set('trust proxy', 1);
 
-// Browsers may only call the API from the POS frontend (plus the local dev server).
-// Extra origins can be added as a comma-separated CORS_ORIGINS env var.
-const ALLOWED_ORIGINS = [
-  'https://divinex.tech',
-  'https://www.divinex.tech',
-  'http://localhost:3000',
-  ...(process.env.CORS_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean),
-];
-app.use(cors({ origin: ALLOWED_ORIGINS }));
-app.use(express.json());
+app.use(cors);
+app.use(express.json({ limit: '200kb' }));
 
-// Serve uploaded product images.
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Rate limits per client IP: a general cap on the whole API, a tight one on login attempts.
+app.use('/api', rateLimit({ windowMs: 60 * 1000, max: Number(process.env.RATE_LIMIT_MAX) || 300 }));
+app.use('/api/auth/login', rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: 'Too many login attempts, please try again in a few minutes',
+}));
+
+// Serve uploaded product images. SVGs may carry scripts, so never let them run.
+app.use('/uploads', express.static(UPLOAD_DIR, {
+  setHeaders: (res, file) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    if (file.endsWith('.svg')) res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'");
+  },
+}));
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
@@ -37,10 +43,22 @@ app.use('/api/carts', require('./routes/carts.routes'));
 app.use('/api/dashboard', require('./routes/dashboard.routes'));
 app.use('/api/customers', require('./routes/customers.routes'));
 
+// Inventory module
+app.use('/api/raw-products', require('./routes/rawProduct.routes'));
+app.use('/api/inventory', require('./routes/inventory.routes'));
+app.use('/api/recipes', require('./routes/recipe.routes'));
+app.use('/api/purchases', require('./routes/purchase.routes'));
+app.use('/api/reservations', require('./routes/reservation.routes'));
+
 app.use((err, _req, res, _next) => {
+  // Expected errors (HttpError, bad JSON body...) carry a 4xx status.
+  if (err.status >= 400 && err.status < 500) {
+    return res.status(err.status).json({ error: err.message, ...(err.errors && { errors: err.errors }) });
+  }
+
   console.error(err);
 
-  res.status(500).json({
+  res.status(err.status || 500).json({
     error: err.message || 'Server error'
   });
 });

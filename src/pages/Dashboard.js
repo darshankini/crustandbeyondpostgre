@@ -6,13 +6,26 @@ import CategoriesAdmin from './dashboard/CategoriesAdmin';
 import OrderAdmin from './dashboard/OrderAdmin';
 import OrderPreview from './dashboard/OrderPreview';
 import CustomersAdmin from './dashboard/CustomersAdmin';
+import MonthlySalesChart from '../components/MonthlySalesChart';
 
-function Stat({ label, value, hint }) {
+// Sales for one period with its order count and cash / online split.
+function PeriodCard({ label, p }) {
+  const row = (name, value) => (
+    <div className="flex justify-between text-sm">
+      <span className="text-gray-500">{name}</span>
+      <span className="font-medium tabular-nums">{value}</span>
+    </div>
+  );
   return (
     <div className="bg-white rounded-lg shadow p-4">
       <div className="text-sm text-gray-500">{label}</div>
-      <div className="text-2xl font-bold mt-1">{value}</div>
-      {hint && <div className="text-xs text-gray-400 mt-1">{hint}</div>}
+      <div className="text-2xl font-bold mt-1 tabular-nums">{p ? money(p.sales) : '…'}</div>
+      <div className="mt-3 space-y-1 border-t pt-3">
+        {row('Orders', p ? p.orders : '…')}
+        {row('Cash', p ? money(p.cash) : '…')}
+        {row('Online', p ? money(p.online) : '…')}
+        {row('Avg / order', p ? money(p.orders ? p.sales / p.orders : 0) : '…')}
+      </div>
     </div>
   );
 }
@@ -25,8 +38,6 @@ export default function Dashboard() {
   useEffect(() => {
     api.get('/dashboard').then(setStats).catch((e) => console.error(e));
   }, []);
-
-  const maxSales = stats ? Math.max(1, ...stats.trend.map((d) => Number(d.sales))) : 1;
 
   const onClose = () => {
     setIsPreview(false);
@@ -48,37 +59,16 @@ export default function Dashboard() {
     <div className="h-full overflow-y-auto bg-gray-100 p-4 md:p-6 space-y-6">
       <h1 className="text-xl font-bold">Dashboard</h1>
 
-      {/* Today's stats */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        <Stat label="Orders Today" value={stats ? stats.today.orders : '…'} />
-        <Stat label="Sales Today" value={stats ? money(stats.today.sales) : '…'} />
-        <Stat
-          label="Avg / Order"
-          value={stats && stats.today.orders ? money(stats.today.sales / stats.today.orders) : money(0)}
-        />
+      {/* Sales by period */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <PeriodCard label="Today" p={stats?.periods?.today} />
+        <PeriodCard label="This week (Mon–today)" p={stats?.periods?.week} />
+        <PeriodCard label="This month" p={stats?.periods?.month} />
       </div>
+      {console.log(stats)}
+      {stats?.monthly && <MonthlySalesChart data={stats.monthly} />}
 
       {/* 7-day trend */}
-      <div className="bg-white rounded-lg shadow p-4">
-        <h3 className="font-semibold mb-3">Last 7 days</h3>
-        {stats && stats.trend.length ? (
-          <div className="flex items-end gap-3 h-32">
-            {stats.trend.map((d) => (
-              <div key={d.day} className="flex-1 flex flex-col items-center justify-end gap-1">
-                <div className="text-xs text-gray-500">{money(d.sales)}</div>
-                <div
-                  className="w-full bg-brand/80 rounded-t"
-                  style={{ height: `${(Number(d.sales) / maxSales) * 100}%` }}
-                  title={`${d.orders} orders`}
-                />
-                <div className="text-xs text-gray-400">{new Date(d.day).toLocaleDateString(undefined, { weekday: 'short' })}</div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-gray-400">No sales yet.</p>
-        )}
-      </div>
 
       {/* CRUD */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

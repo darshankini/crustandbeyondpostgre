@@ -2,7 +2,8 @@ import { memo, useState, useEffect } from 'react';
 import { money, itemTotal, unitTotal } from './Layout';
 
 // One cart line: image, name + chosen sub-items, inline +/- qty stepper, line total, remove.
-function CartItem({ item, onInc, onDec, onSetQty, onRemove, onEditOptions }) {
+// atLimit: stock can't make another unit, so + is greyed (it still explains why when pressed).
+function CartItem({ item, atLimit, onInc, onDec, onSetQty, onRemove, onEditOptions }) {
   // Local draft so the field can be cleared/retyped without the item disappearing.
   const [draft, setDraft] = useState(String(item.qty));
   useEffect(() => setDraft(String(item.qty)), [item.qty]);
@@ -11,7 +12,10 @@ function CartItem({ item, onInc, onDec, onSetQty, onRemove, onEditOptions }) {
     const v = e.target.value.replace(/\D/g, '');
     setDraft(v);
     const q = Number(v);
-    if (q > 0) onSetQty(item.key, q);
+    if (q <= 0) return;
+    // The cart may cap the quantity (stock); show what was actually set.
+    const applied = onSetQty(item.key, q);
+    if (applied !== undefined && applied !== q) setDraft(String(applied));
   };
 
   return (
@@ -52,7 +56,7 @@ function CartItem({ item, onInc, onDec, onSetQty, onRemove, onEditOptions }) {
             aria-label={`Quantity of ${item.name}`}
             className="h-7 w-8 rounded border text-center text-sm tabular-nums outline-none focus:border-brand"
           />
-          <button onClick={() => onInc(item.key)} className="h-7 w-6 rounded bg-gray-200 hover:bg-gray-300 leading-none" aria-label={`Increase ${item.name}`}>+</button>
+          <button onClick={() => onInc(item.key)} className={'h-7 w-6 rounded leading-none ' + (atLimit ? 'bg-gray-100 text-gray-300' : 'bg-gray-200 hover:bg-gray-300')} aria-label={`Increase ${item.name}`}>+</button>
         </div>
         <div className="shrink-0 pt-1 text-right text-sm font-semibold tabular-nums whitespace-nowrap">{money(itemTotal(item))}</div>
         <button onClick={() => onRemove(item.key)} className="shrink-0 pt-1 text-gray-400 hover:text-red-500 leading-none" title="Remove" aria-label={`Remove ${item.name}`}>

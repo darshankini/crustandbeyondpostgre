@@ -46,6 +46,7 @@ function Header() {
       <nav className="flex gap-1">
         <NavLink to="/" end className={linkCls}>POS</NavLink>
         <NavLink to="/dashboard" className={linkCls}>Dashboard</NavLink>
+        <NavLink to="/inventory" className={linkCls}>Inventory</NavLink>
       </nav>
       <HeaderSearch className="order-last w-full md:order-none md:w-auto md:flex-1 md:max-w-md" />
       <div className="ml-auto flex items-center gap-2 sm:gap-3 text-sm">
