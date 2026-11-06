@@ -2,9 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "create-react-app",
   "installCommand": "npm install",
-  "buildCommand": "REACT_APP_API=${REACT_APP_API:-/api} npm run build",
+  "buildCommand": "REACT_APP_API=${REACT_APP_API:-/api} npm run vercel-build",
   "outputDirectory": "build",
-  "regions": ["bom1"],
   "functions": {
     "api/index.js": {
       "maxDuration": 30
