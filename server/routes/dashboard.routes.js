@@ -9,6 +9,9 @@ router.use(requireAuth);
 
 // GET /api/dashboard
 // Today's order count, sales, and 7-day trend.
+// Every "day" here is a business day: local time minus DAY_START_HOUR ($2), so an order
+// taken after midnight still counts toward the day the restaurant opened. created_at itself
+// is never changed.
 router.get('/', async (_req, res) => {
   // Today's summary
   const todayResult = await pool.query(
@@ -16,28 +19,28 @@ router.get('/', async (_req, res) => {
        COUNT(*) AS orders,
        COALESCE(SUM(COALESCE(final_total, total)), 0) AS sales
      FROM orders
-     WHERE (created_at AT TIME ZONE $1)::date = (now() AT TIME ZONE $1)::date`,
-    [pool.TZ]
+     WHERE ((created_at AT TIME ZONE $1) - make_interval(hours => $2::int))::date = ((now() AT TIME ZONE $1) - make_interval(hours => $2::int))::date`,
+    [pool.TZ, pool.DAY_START_HOUR]
   );
 
   // 7-day trend
   const trendResult = await pool.query(
     `SELECT
-       (created_at AT TIME ZONE $1)::date AS day,
+       ((created_at AT TIME ZONE $1) - make_interval(hours => $2::int))::date AS day,
        COUNT(*) AS orders,
        COALESCE(SUM(COALESCE(final_total, total)), 0) AS sales
      FROM orders
-     WHERE (created_at AT TIME ZONE $1)::date >= (now() AT TIME ZONE $1)::date - 6
+     WHERE ((created_at AT TIME ZONE $1) - make_interval(hours => $2::int))::date >= ((now() AT TIME ZONE $1) - make_interval(hours => $2::int))::date - 6
      GROUP BY 1
      ORDER BY day`,
-    [pool.TZ]
+    [pool.TZ, pool.DAY_START_HOUR]
   );
 
   // Today / this week (Mon-today) / this month: orders, sales and how they were paid.
   // Cash and online come from the payment rows, capped at the bill so cash handed over
   // (e.g. a 500 note for a 450 bill) isn't counted as sales.
   const periodsResult = await pool.query(
-    `WITH t AS (SELECT (now() AT TIME ZONE $1)::date AS today),
+    `WITH t AS (SELECT ((now() AT TIME ZONE $1) - make_interval(hours => $2::int))::date AS today),
      per AS (
        SELECT 'today' AS key, today AS start FROM t
        UNION ALL SELECT 'week', date_trunc('week', today)::date FROM t
@@ -51,13 +54,13 @@ router.get('/', async (_req, res) => {
        GROUP BY order_id
      ),
      o AS (
-       SELECT (o.created_at AT TIME ZONE $1)::date AS day,
+       SELECT ((o.created_at AT TIME ZONE $1) - make_interval(hours => $2::int))::date AS day,
               COALESCE(o.final_total, o.total) AS sale,
               COALESCE(p.cash, 0) AS cash,
               COALESCE(p.online, 0) AS online
        FROM orders o
        LEFT JOIN paid p ON p.order_id = o.id
-       WHERE (o.created_at AT TIME ZONE $1)::date >= (SELECT MIN(start) FROM per)
+       WHERE ((o.created_at AT TIME ZONE $1) - make_interval(hours => $2::int))::date >= (SELECT MIN(start) FROM per)
      )
      SELECT per.key,
             COUNT(o.day) AS orders,
@@ -67,15 +70,15 @@ router.get('/', async (_req, res) => {
      FROM per
      LEFT JOIN o ON o.day >= per.start
      GROUP BY per.key`,
-    [pool.TZ]
+    [pool.TZ, pool.DAY_START_HOUR]
   );
 
-  // Weekly sales for the last 12 weeks (Mon-Sun), including weeks with no orders.
+  // Daily sales for the current month (1st to today), including days with no orders.
   const monthlyResult = await pool.query(
   `WITH t AS (
       SELECT
-        date_trunc('month', now() AT TIME ZONE $1)::date AS month_start,
-        (now() AT TIME ZONE $1)::date AS today
+        date_trunc('month', (now() AT TIME ZONE $1) - make_interval(hours => $2::int))::date AS month_start,
+        ((now() AT TIME ZONE $1) - make_interval(hours => $2::int))::date AS today
    ),
    days AS (
       SELECT generate_series(
@@ -94,10 +97,10 @@ router.get('/', async (_req, res) => {
       ) AS sales
    FROM days d
    LEFT JOIN orders o
-      ON (o.created_at AT TIME ZONE $1)::date = d.day
+      ON ((o.created_at AT TIME ZONE $1) - make_interval(hours => $2::int))::date = d.day
    GROUP BY d.day
    ORDER BY d.day`,
-  [pool.TZ]
+  [pool.TZ, pool.DAY_START_HOUR]
 );
 
   const today = todayResult[0][0];
@@ -107,6 +110,8 @@ router.get('/', async (_req, res) => {
       orders: today.orders,
       sales: today.sales
     },
+    monthly: monthlyResult[0],
+    periods: Object.fromEntries(periodsResult[0].map(({ key, ...p }) => [key, p])),
     trend: trendResult[0]
   });
 });

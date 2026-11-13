@@ -4,7 +4,7 @@ import { money,formattedDate } from '../../components/Layout';
 
 //const EMPTY = { name: '', price: '', category_id: '', image: '' };
 
-export default function OrderAdmin({isOrderPreview}) {
+export default function OrderAdmin({isOrderPreview,deleteOrder}) {
   const [rows, setRows] = useState([]);
   const [currentPage,setCurrentPage] = useState(1);
 
@@ -20,6 +20,8 @@ export default function OrderAdmin({isOrderPreview}) {
   useEffect(() => { load(); }, [load]);
 
   const totalPages = Math.ceil(rows.length/orderPerPage);
+  // After a delete empties the last page, step back to the new last page.
+  useEffect(() => { if (totalPages && currentPage > totalPages) setCurrentPage(totalPages); }, [totalPages, currentPage]);
   const startIndex = ((currentPage - 1) * orderPerPage) + 1;
   const endIndex = orderPerPage * currentPage;
   const currentOrders = rows.slice(startIndex - 1,endIndex);
@@ -83,6 +85,7 @@ export default function OrderAdmin({isOrderPreview}) {
                 <td className="px-3 text-center tabular-nums">{formattedDate(p.created_at)}</td>
                 <td className="px-3 text-center">
                     <button onClick={() => isOrderPreview(p.id)} className='bg-orange-600 rounded-md text-sm p-1 text-white'>Preview</button>
+                    <button onClick={async () => { if (await deleteOrder(p.id)) load(); }} className='ml-2 bg-red-600 rounded-md text-sm p-1 text-white'>Delete</button>
                 </td>
               </tr>
             ))}

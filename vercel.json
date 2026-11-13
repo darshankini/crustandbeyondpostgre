@@ -1,5 +1,4 @@
 {
-<<<<<<< HEAD
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "create-react-app",
   "installCommand": "npm install",
@@ -16,9 +15,6 @@
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
-=======
-  "builds": [
->>>>>>> parent of 2576130 (inventory module added)
     {
       "src": "api/index.js",
       "use": "@vercel/node"
