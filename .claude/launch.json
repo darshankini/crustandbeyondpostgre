@@ -26,16 +26,6 @@
       "runtimeArgs": ["--prefix", "server", "start"],
       "port": 5001,
       "env": { "PORT": "5001", "CORS_ORIGINS": "http://localhost:3001" }
-    },
-    {
-      "name": "pos-api-test-localdb",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "server", "start"],
-      "port": 5001,
-      "env": {
-        "PORT": "5001", "CORS_ORIGINS": "http://localhost:3001",
-        "DATABASE_URL": "", "DB_HOST": "127.0.0.1", "DB_NAME": "crustandbeyond", "DB_USER": "postgres"
-      }
     }
   ]
 }

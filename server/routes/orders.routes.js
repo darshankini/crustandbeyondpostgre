@@ -2,27 +2,19 @@ const router = require('express').Router();
 const db = require('../db');
 const { itemTotal, cleanDiscount, discountAmount } = require('../pricing');
 const { requireAuth } = require('../auth');
-const inventory = require('../services/inventory.service');
-const { KEY: RESERVATION_KEY } = require('../validators/reservation.validator');
 
 // POST /api/orders
-// { items: [{ id, name, price, qty, subitems? }], discount_type?, discount?, reservation_key? } — price is
-// per unit, qty is the quantity sold, subitems are [{ id, group_name, name, price }] added to the unit price.
+// { items: [{ id, name, price, qty, subitems? }], discount_type?, discount? } — price is per unit, qty is the
+// quantity sold, subitems are [{ id, group_name, name, price }] added to the unit price.
 // discount_type is 'flat' (discount in Rs.) or 'percent' (discount in %); the server recomputes the amounts.
-// reservation_key is the cart id: stock its KOT reserved is used for this order.
 // Creates an order + its line items inside a transaction.
 router.post('/', async (req, res) => {
   const items = Array.isArray(req.body?.items) ? req.body.items : [];
-  const reservationKey = req.body?.reservation_key ?? null;
 
   if (!items.length) {
     return res.status(400).json({
       error: 'items required'
     });
-  }
-
-  if (reservationKey !== null && !RESERVATION_KEY.test(reservationKey)) {
-    return res.status(400).json({ error: 'reservation_key must be the cart id' });
   }
 
   if (items.some((item) => !Number.isInteger(Number(item.qty)) || Number(item.qty) <= 0)) {
@@ -43,53 +35,53 @@ router.post('/', async (req, res) => {
 
   const itemCount = items.length;
 
+  const conn = await db.pool.connect();
+
   try {
-    const order = await db.transaction(async (conn) => {
-      // Create order
-      const { rows: [order] } = await conn.query(
-        `INSERT INTO orders (total, discount_type, discount, discount_amount, final_total, item_count)
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at`,
-        [total, discountType, discount, discountAmt, finalTotal, itemCount]
+    await conn.query('BEGIN');
+
+    // Create order
+    const { rows: [order] } = await conn.query(
+      `INSERT INTO orders (total, discount_type, discount, discount_amount, final_total, item_count)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at`,
+      [total, discountType, discount, discountAmt, finalTotal, itemCount]
+    );
+
+    // Create order items one by one so each line's sub-items can point at its id.
+    for (const item of items) {
+      const { rows: [itemResult] } = await conn.query(
+        `INSERT INTO order_items
+         (order_id, product_id, name, price, qty, amount)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id`,
+        [
+          order.id,
+          item.id || null,
+          item.name,
+          Number(item.price),
+          Number(item.qty),
+          itemTotal(item)
+        ]
       );
 
-      // Create order items one by one so each line's sub-items can point at its id.
-      for (const item of items) {
-        const { rows: [itemResult] } = await conn.query(
-          `INSERT INTO order_items
-           (order_id, product_id, name, price, qty, amount)
-           VALUES ($1, $2, $3, $4, $5, $6)
-           RETURNING id`,
+      const subs = Array.isArray(item.subitems) ? item.subitems : [];
+      if (subs.length) {
+        await conn.query(
+          `INSERT INTO order_item_subitems
+           (order_item_id, subitem_id, group_name, name, price)
+           SELECT $1::int, * FROM unnest($2::int[], $3::text[], $4::text[], $5::numeric[])`,
           [
-            order.id,
-            item.id || null,
-            item.name,
-            Number(item.price),
-            Number(item.qty),
-            itemTotal(item)
+            itemResult.id,
+            subs.map((x) => x.id || null),
+            subs.map((x) => x.group_name || ''),
+            subs.map((x) => x.name),
+            subs.map((x) => Number(x.price) || 0),
           ]
         );
-
-        const subs = Array.isArray(item.subitems) ? item.subitems : [];
-        if (subs.length) {
-          await conn.query(
-            `INSERT INTO order_item_subitems
-             (order_item_id, subitem_id, group_name, name, price)
-             SELECT $1::int, * FROM unnest($2::int[], $3::text[], $4::text[], $5::numeric[])`,
-            [
-              itemResult.id,
-              subs.map((x) => x.id || null),
-              subs.map((x) => x.group_name || ''),
-              subs.map((x) => x.name),
-              subs.map((x) => Number(x.price) || 0),
-            ]
-          );
-        }
       }
+    }
 
-      await inventory.deductForOrder(order.id, items, conn, reservationKey);
-
-      return order;
-    });
+    await conn.query('COMMIT');
 
     res.status(201).json({
       id: order.id,
@@ -103,15 +95,16 @@ router.post('/', async (req, res) => {
     });
 
   } catch (error) {
-    if (error.status === 409) return res.status(409).json({ error: error.message }); // not enough stock / counter busy
-    // Backstop: the database refused stock below zero (chk_inventory_qty_non_negative).
-    if (error.code === '23514') return res.status(409).json({ error: 'Not enough stock for this order' });
+    await conn.query('ROLLBACK').catch(() => {});
 
     console.error('Order creation failed:', error);
 
     res.status(500).json({
       error: error.message || 'Failed to create order'
     });
+
+  } finally {
+    conn.release();
   }
 });
 
@@ -125,22 +118,15 @@ router.delete('/:id', requireAuth, async (req, res) => {
   }
 
   try {
-    // Put back exactly the stock the order took, then delete it; both roll back on failure.
-    const cancelled = await db.transaction(async (conn) => {
-      const { rows } = await conn.query(
-        `SELECT o.id, o.reservation_key FROM orders o
-         WHERE o.id = $1
-           AND NOT EXISTS (SELECT 1 FROM payment p WHERE p.order_id = o.id)
-           AND NOT EXISTS (SELECT 1 FROM customers c WHERE c.order_id = o.id)
-         FOR UPDATE`,
-        [orderId]
-      );
-      if (!rows.length) return false;
-      await inventory.restoreForOrder(orderId, conn, rows[0].reservation_key);
-      await conn.query('DELETE FROM orders WHERE id = $1', [orderId]);
-      return true;
-    });
-    if (!cancelled) return res.status(409).json({ error: 'order not found or already paid' });
+    const [rows] = await db.query(
+      `DELETE FROM orders o
+       WHERE o.id = $1
+         AND NOT EXISTS (SELECT 1 FROM payment p WHERE p.order_id = o.id)
+         AND NOT EXISTS (SELECT 1 FROM customers c WHERE c.order_id = o.id)
+       RETURNING o.id`,
+      [orderId]
+    );
+    if (!rows.length) return res.status(409).json({ error: 'order not found or already paid' });
     res.json({ ok: true });
   } catch (error) {
     console.error('Cancel order failed:', error);

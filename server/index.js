@@ -58,22 +58,10 @@ app.use('/api/carts', require('./routes/carts.routes'));
 app.use('/api/dashboard', require('./routes/dashboard.routes'));
 app.use('/api/customers', require('./routes/customers.routes'));
 
-// Inventory module
-app.use('/api/raw-products', require('./routes/rawProduct.routes'));
-app.use('/api/inventory', require('./routes/inventory.routes'));
-app.use('/api/recipes', require('./routes/recipe.routes'));
-app.use('/api/purchases', require('./routes/purchase.routes'));
-app.use('/api/reservations', require('./routes/reservation.routes'));
-
 app.use((err, _req, res, _next) => {
-  // Expected errors (HttpError, bad JSON body...) carry a 4xx status.
-  if (err.status >= 400 && err.status < 500) {
-    return res.status(err.status).json({ error: err.message, ...(err.errors && { errors: err.errors }) });
-  }
-
   console.error(err);
 
-  res.status(err.status || 500).json({
+  res.status(500).json({
     error: err.message || 'Server error'
   });
 });

@@ -101,18 +101,13 @@ router.get('/', async (_req, res) => {
 );
 
   const today = todayResult[0][0];
-  const periods = Object.fromEntries(periodsResult[0].map(({ key, ...p }) => [key, p]));
-  
-  console.log(monthlyResult);
 
   res.json({
     today: {
       orders: today.orders,
       sales: today.sales
     },
-    periods,
-    trend: trendResult[0],
-    monthly: monthlyResult[0]
+    trend: trendResult[0]
   });
 });
 

@@ -7,12 +7,3 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`POS API running on port ${PORT}`);
 });
-
-// Give back stock held by KOTs whose cart was never checked out or cleared (every minute).
-// Only in this long-running process; serverless deploys (api/index.js) don't run it.
-const { releaseExpired } = require('./services/reservation.service');
-setInterval(() => {
-  releaseExpired()
-    .then((n) => n && console.log(`Released ${n} expired KOT reservation(s)`))
-    .catch((e) => console.error('Reservation sweep failed:', e.message));
-}, 60 * 1000).unref();

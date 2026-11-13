@@ -1,16 +1,19 @@
 const router = require('express').Router();
 const path = require('path');
+const fs = require('fs');
 const multer = require('multer');
 
 const pool = require('../db');
 const { requireAuth } = require('../auth');
-const { UPLOAD_DIR, ensureDir } = require('../utils/uploads');
 
 // --- Image uploads ---------------------------------------------------------
-// Files are stored on disk under UPLOAD_DIR (see utils/uploads.js) and served statically from
+// Files are stored on disk under server/uploads and served statically from
 // /uploads (see index.js). The product row keeps an absolute URL to the file.
+const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+
 const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, ensureDir(UPLOAD_DIR)),
+  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
   filename: (_req, file, cb) => {
     const ext = (path.extname(file.originalname) || '').toLowerCase();
     cb(null, `p_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`);
@@ -40,14 +43,7 @@ router.get('/', async (req, res) => {
       p.category_id,
       c.name AS category,
       (SELECT string_agg(g.group_name, '|' ORDER BY g.group_name)
-         FROM product_subitem_groups g WHERE g.product_id = p.id) AS subitem_groups,
-      -- How many can be made from current stock (the scarcest raw product decides);
-      -- NULL when the product has no recipe, i.e. stock isn't tracked for it.
-      (SELECT MIN(COALESCE(i.product_qty, 0) / ri.qty)
-         FROM recipe r
-         JOIN recipe_items ri ON ri.recipe_id = r.id
-         LEFT JOIN inventory i ON i.raw_product_id = ri.raw_product_id
-        WHERE r.product_id = p.id) AS stock_available
+         FROM product_subitem_groups g WHERE g.product_id = p.id) AS subitem_groups
     FROM products p
     LEFT JOIN categories c ON c.id = p.category_id
     WHERE p.is_active = 1

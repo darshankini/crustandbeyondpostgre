@@ -8,7 +8,6 @@ import ProductList from '../components/ProductList';
 import Cart from '../components/Cart';
 import ErrorBoundary from '../components/ErrorBoundary';
 import SubitemPicker from '../components/SubitemPicker';
-import { onStockChanged, setProductStock, setReservations } from '../stock';
 
 export default function POS() {
   const { add, setSubitems: setLineSubitems, total, count } = useCart();
@@ -37,39 +36,22 @@ export default function POS() {
       .catch((e) => console.error(e));
   }, []);
 
-  // Bumped to refetch products (and so their stock) without a new search.
-  const [stockTick, setStockTick] = useState(0);
-
   // Products: refetch when the search term changes. Ignore a response that arrives after a newer search.
-  // Fetched together with the KOT reservations so stock and "held by this cart" always match.
   useEffect(() => {
     let alive = true;
-    Promise.all([
-      api.get('/products' + (search ? `?search=${encodeURIComponent(search)}` : '')),
-      api.get('/reservations').catch(() => []),
-    ])
-      .then(([prods, reservations]) => {
+    api
+      .get('/products' + (search ? `?search=${encodeURIComponent(search)}` : ''))
+      .then((prods) => {
         if (!alive) return;
         for (const p of prods) knownProducts.current.set(p.id, p);
         setProducts(prods);
-        setProductStock(prods); // the cart's +/qty checks read this
-        setReservations(reservations);
       })
       .catch((e) => console.error(e))
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;
     };
-  }, [search, stockTick]);
-
-  // Keep stock current: right after this counter prints a KOT / checks out / cancels / clears,
-  // and every 15 s (while the tab is visible) to pick up other counters.
-  useEffect(() => {
-    const refresh = () => setStockTick((t) => t + 1);
-    const off = onStockChanged(refresh);
-    const timer = setInterval(() => document.visibilityState === 'visible' && refresh(), 15000);
-    return () => { off(); clearInterval(timer); };
-  }, []);
+  }, [search]);
 
   // A search looks across all categories.
   useEffect(() => {

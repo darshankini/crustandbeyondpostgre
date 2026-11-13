@@ -57,33 +57,6 @@ set `REACT_APP_API` at build time to point it elsewhere, and `CORS_ORIGINS` on t
 Note: uploaded product images are saved in `server/uploads` inside the deployment, so a redeploy
 removes images uploaded since the last deploy.
 
-## Deploying on Vercel (frontend + API in one project)
-
-`vercel.json` builds the React app from the repo root and runs the Express API (`server/`) as one
-serverless function (`api/index.js`). `/api/*` and `/uploads/*` go to the function, everything else
-is the React app, so the frontend calls the API on the same domain (`REACT_APP_API` defaults to `/api`).
-
-Import the repo in Vercel with the **root directory left at the repo root** (the settings come from
-`vercel.json`), then add under **Settings → Environment Variables**:
-
-| Variable | Value |
-|---|---|
-| `DATABASE_URL` | Supabase **Transaction pooler** connection string (port 6543) |
-| `JWT_SECRET` | a long random string |
-| `APP_TZ` | `Asia/Kolkata` |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`, `ADMIN_EMAIL` | low-stock emails (optional) |
-| `REACT_APP_API` | only to call an API on another domain (default `/api`) |
-
-Run `npm run migrate` from `server/` against the same database before the first deploy and after
-schema changes. Functions run in Mumbai (`bom1`, next to the Supabase database).
-
-Limits on Vercel:
-- **Uploaded images don't last**: the function can only write to `/tmp`, which is wiped on cold
-  starts. Keep image uploads on the Hostinger API, or move them to object storage.
-- Rate limits are counted per function instance, so they're looser than on Hostinger.
-- Expired KOT stock holds are released when a POS refreshes its stock (every 15 s), not by the
-  one-minute timer in `server.js`, which doesn't run on Vercel.
-
 ## Default login
 
 ```

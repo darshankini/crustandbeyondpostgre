@@ -5,7 +5,6 @@ import Layout from './components/Layout';
 import Login from './pages/Login';
 import POS from './pages/POS';
 import Dashboard from './pages/Dashboard';
-import Inventory from './pages/Inventory';
 import { Toaster } from "react-hot-toast";
 
 export default function App() {
@@ -20,7 +19,6 @@ export default function App() {
             <Route element={<Layout />}>
               <Route index element={<POS />} />
               <Route path="dashboard" element={<Dashboard />} />
-              <Route path="inventory" element={<Inventory />} />
             </Route>
           </Routes>
         </BrowserRouter>

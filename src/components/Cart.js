@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { useCart } from '../context/CartContext';
 import { api } from '../api';
 import { money } from './Layout';
@@ -9,9 +9,6 @@ import CustomerModal from './CustomerModal';
 import toast from 'react-hot-toast';
 import { status as printerStatus, printBytes } from '../printer/printer';
 import { buildReceipt, buildKot } from '../printer/escpos';
-import {
-  limitMessage, notifyStockChanged, qtyInCart, releaseReservation, reserveForKot, unitsLeft, useProductStock, useReserved,
-} from '../stock';
 
 export default function Cart({ onClose, onEditOptions }) {
   const {
@@ -25,53 +22,11 @@ export default function Cart({ onClose, onEditOptions }) {
   // What the browser print dialog shows: { type: 'bill', order, items, customer } or { type: 'kot', label, items }.
   const [printData, setPrintData] = useState(null);
   const cartLabel = sessions.find((s) => s.id === activeId)?.label;
-  const stock = useProductStock();
-  // Units per product this cart's printed KOT holds: they're out of stock for everyone else
-  // but still this cart's to use.
-  const reserved = useReserved(activeId);
-
-  // Units of a line's product still free to add (Infinity when stock isn't tracked or unknown).
-  const leftFor = useCallback((item) => {
-    const p = stock.get(item.id);
-    return p ? unitsLeft(p, qtyInCart(items, item.id), reserved.get(item.id) || 0) : Infinity;
-  }, [stock, items, reserved]);
-  const limitFor = useCallback((item) => limitMessage(stock.get(item.id), reserved.get(item.id) || 0), [stock, reserved]);
-
-  // + on a cart line: same stock limit as the product cards.
-  const incChecked = useCallback((key) => {
-    const item = items.find((i) => i.key === key);
-    if (item && leftFor(item) <= 0) return toast.error(limitFor(item));
-    inc(key);
-  }, [items, leftFor, limitFor, inc]);
-
-  // Typed quantity: capped at what stock can still make. Returns the quantity actually set.
-  const setQtyChecked = useCallback((key, qty) => {
-    const item = items.find((i) => i.key === key);
-    const max = item ? item.qty + leftFor(item) : Infinity;
-    const applied = Math.min(qty, max);
-    if (applied < qty) toast.error(limitFor(item));
-    setQty(key, applied);
-    return applied;
-  }, [items, leftFor, limitFor, setQty]);
-
-  // A cart that was emptied (bill printed, lines removed) gives back any stock its KOT held.
-  useEffect(() => {
-    if (!items.length && reserved.size) releaseReservation(activeId);
-  }, [items.length, reserved, activeId]);
 
   // Print a Kitchen Order Ticket for the current cart. Doesn't check out or clear the cart,
-  // so it can be sent to the kitchen before the customer pays. Reserves the whole cart's stock
-  // first (replacing this cart's earlier KOT reservation): the kitchen never gets an order that
-  // can't be made, and no other counter can sell that stock until this cart is checked out or cleared.
+  // so it can be sent to the kitchen before the customer pays.
   const printKot = useCallback(async () => {
-    if (!items.length || busy) return;
-    setBusy(true);
-    const short = await reserveForKot(activeId, items);
-    setBusy(false);
-    if (short) {
-      toast.error(`KOT not printed. ${short}`, { duration: 6000 });
-      return;
-    }
+    if (!items.length) return;
     const job = { label: cartLabel, items: items.slice() };
     if (printerStatus().connected) {
       try {
@@ -84,13 +39,12 @@ export default function Cart({ onClose, onEditOptions }) {
     }
     setPrintData({ type: 'kot', ...job });
     setTimeout(() => window.print(), 50);
-  }, [items, busy, cartLabel, activeId]);
+  }, [items, cartLabel]);
 
   // Clearing every cart is destructive, so confirm when there's anything to lose.
   const handleClearSessions = useCallback(() => {
     const hasStuff = sessions.length > 1 || sessions.some((s) => s.count > 0);
     if (hasStuff && !window.confirm('Clear all carts? This removes every cart session.')) return;
-    sessions.forEach((x) => releaseReservation(x.id)); // give back stock held by their KOTs
     clearSessions();
   }, [sessions, clearSessions]);
 
@@ -98,7 +52,6 @@ export default function Cart({ onClose, onEditOptions }) {
     const hasStuff = sessions.some((s) => s.id === id && s.count > 0);
     if(hasStuff &&!window.confirm('Are you sure you want to clear the current cart?')) return;
     clearCurrentSession(id);
-    releaseReservation(id); // give back stock held by its KOT
   },[sessions,clearCurrentSession])
 
   // Step 1: create + save the order, then open the customer modal (order is saved either way).
@@ -110,17 +63,14 @@ export default function Cart({ onClose, onEditOptions }) {
         items: items.map(({ id, name, price, qty, subitems }) => ({ id, name, price, qty, subitems: subitems || [] })),
         discount_type: discountAmt > 0 ? discount.type : null,
         discount: discountAmt > 0 ? Number(discount.value) : 0,
-        reservation_key: activeId, // use the stock this cart's KOT reserved
       });
       setPending({ order, items: items.slice(), total: order.final_total ?? finalTotal });
     } catch (e) {
       alert('Checkout failed: ' + e.message);
     } finally {
       setBusy(false);
-      // Stock was taken (or another counter got there first): refresh what's left.
-      notifyStockChanged();
     }
-  }, [items, busy, discount, discountAmt, finalTotal, activeId]);
+  }, [items, busy, discount, discountAmt, finalTotal]);
 
   // Print the customer bill for the pending order (optionally with customer details), then clear the cart.
   // Goes straight to the connected thermal printer; otherwise (or if that fails) the browser print dialog.
@@ -160,7 +110,6 @@ export default function Cart({ onClose, onEditOptions }) {
       setSaving(false);
     }
     setPending(null);
-    notifyStockChanged(); // the cancelled order's stock is back
   }, [pending]);
 
   // Step 2a: customer skipped — record the payment, then print.
@@ -296,7 +245,7 @@ export default function Cart({ onClose, onEditOptions }) {
         ) : (
           <ul className="divide-y">
             {items.map((i) => (
-              <CartItem key={i.key} item={i} atLimit={leftFor(i) <= 0} onInc={incChecked} onDec={dec} onSetQty={setQtyChecked} onRemove={remove} onEditOptions={onEditOptions}/>
+              <CartItem key={i.key} item={i} onInc={inc} onDec={dec} onSetQty={setQty} onRemove={remove} onEditOptions={onEditOptions}/>
             ))}
           </ul>
         )}
@@ -367,7 +316,7 @@ export default function Cart({ onClose, onEditOptions }) {
           </button>
           <button
             onClick={printKot}
-            disabled={!items.length || busy}
+            disabled={!items.length}
             title="Print kitchen ticket (no prices). Doesn't check out."
             className="py-2.5 rounded-md border-2 border-brand text-brand hover:bg-brand/10 text-sm sm:text-base font-semibold disabled:opacity-40"
           >

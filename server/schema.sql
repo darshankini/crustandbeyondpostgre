@@ -139,6 +139,7 @@ CREATE TABLE IF NOT EXISTS payment (
 );
 CREATE INDEX IF NOT EXISTS idx_payment_order ON payment (order_id);
 
+<<<<<<< HEAD
 -- ---------------------------------------------------------------------------
 -- Inventory module
 -- Stock is kept in base units (gram / ml): 30 kg of maida is stored as 30000 gram.
@@ -288,6 +289,8 @@ CREATE INDEX IF NOT EXISTS idx_items_product      ON order_items (product_id);  
 CREATE INDEX IF NOT EXISTS idx_reservations_expiry ON stock_reservations (expires_at);  -- expiry sweep
 CREATE INDEX IF NOT EXISTS idx_srl_raw            ON stock_reservation_lines (raw_product_id); -- reserved per raw product
 
+=======
+>>>>>>> parent of 2576130 (inventory module added)
 -- The API connects directly (not via the Supabase REST API), so block anonymous
 -- REST access to these tables by enabling RLS with no policies.
 ALTER TABLE users                  ENABLE ROW LEVEL SECURITY;
@@ -302,6 +305,7 @@ ALTER TABLE cart                   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cart_items             ENABLE ROW LEVEL SECURITY;
 ALTER TABLE customers              ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payment                ENABLE ROW LEVEL SECURITY;
+<<<<<<< HEAD
 ALTER TABLE raw_products           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inventory              ENABLE ROW LEVEL SECURITY;
 ALTER TABLE recipe                 ENABLE ROW LEVEL SECURITY;
@@ -311,6 +315,8 @@ ALTER TABLE purchase_items         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE order_inventory        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE stock_reservations     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE stock_reservation_lines ENABLE ROW LEVEL SECURITY;
+=======
+>>>>>>> parent of 2576130 (inventory module added)
 
 -- Seed categories (admin user + products come from `npm run seed`).
 INSERT INTO categories (name) VALUES
