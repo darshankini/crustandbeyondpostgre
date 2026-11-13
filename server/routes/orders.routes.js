@@ -110,23 +110,36 @@ router.post('/', async (req, res) => {
 
 // DELETE /api/orders/:id
 // Cancels an order closed from the customer dialog before it was paid, so the cart can be
-// changed and checked out again. Paid orders (or ones with customer details) are kept.
+// changed and checked out again. Paid orders (or ones with customer details) are kept,
+// unless ?force=1 is passed (dashboard delete): then the order goes with its payment
+// (FK cascade) and its customer row.
 router.delete('/:id', requireAuth, async (req, res) => {
   const orderId = Number(req.params.id);
   if (!Number.isInteger(orderId) || orderId <= 0) {
     return res.status(400).json({ error: 'invalid order id' });
   }
 
+  const force = req.query.force === '1';
+
   try {
-    const [rows] = await db.query(
-      `DELETE FROM orders o
-       WHERE o.id = $1
-         AND NOT EXISTS (SELECT 1 FROM payment p WHERE p.order_id = o.id)
-         AND NOT EXISTS (SELECT 1 FROM customers c WHERE c.order_id = o.id)
-       RETURNING o.id`,
-      [orderId]
-    );
-    if (!rows.length) return res.status(409).json({ error: 'order not found or already paid' });
+    const deleted = await db.transaction(async (conn) => {
+      const { rows } = await conn.query(
+        `DELETE FROM orders o
+         WHERE o.id = $1
+           AND ($2 OR (
+             NOT EXISTS (SELECT 1 FROM payment p WHERE p.order_id = o.id)
+             AND NOT EXISTS (SELECT 1 FROM customers c WHERE c.order_id = o.id)
+           ))
+         RETURNING o.id`,
+        [orderId, force]
+      );
+      // customers.order_id has no foreign key, so it does not cascade.
+      if (rows.length) await conn.query('DELETE FROM customers WHERE order_id = $1', [orderId]);
+      return rows.length > 0;
+    });
+    if (!deleted) {
+      return res.status(force ? 404 : 409).json({ error: force ? 'order not found' : 'order not found or already paid' });
+    }
     res.json({ ok: true });
   } catch (error) {
     console.error('Cancel order failed:', error);
