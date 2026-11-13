@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState,useMemo } from 'react';
 import { money } from './Layout';
+import { debounce } from '../utils/debounce';
+import { api } from '../api';
 
 // Post-checkout dialog. The order is already saved; this only collects optional
 // customer details. "Skip & Print" prints without details; "Save & Print" saves
@@ -13,9 +15,70 @@ export default function CustomerModal({ order, total, onSkip, onSubmit, onClose,
   const [cash,setCash] = useState('');
   const [online,setOnline] = useState('');
   const [error, setError] = useState('');
+  const [loading,setLoading] = useState(false);
+  const [suggestions,setSuggestions] = useState([]);
 
   const paymentModes = ['Cash','Online','Split'];
+
+  const abortController = useRef(null);
   
+  const searchCustomers = async (value) => {
+    
+    abortController.current?.abort();
+    
+    if(value.length < 3){
+      setSuggestions([]);
+      setLoading(false);
+      return;
+    }
+    
+    const controller = new AbortController();
+    abortController.current = controller;
+
+    try{
+      setLoading(true);
+      const data = await api.get(`/customers/search?mobile=${encodeURIComponent(value)}`,{signal: controller.signal});
+      console.log(data);
+      setSuggestions(data.flat());
+
+    }catch(error){
+      if(error.name != "AbortError"){
+        console.error(error);
+        setSuggestions([]);
+      }
+    }finally{
+      if(abortController.current === controller){
+        setLoading(false);
+      }
+    }
+  }
+
+  const debounceSearch = useMemo(() => debounce(searchCustomers,300),[]);
+  
+  useEffect(() => {
+    
+    if(mobile.length < 3){
+      setSuggestions([]);
+      setLoading(false);
+      return;
+    }
+
+    debounceSearch(mobile);
+    
+    return () => {
+      debounceSearch.cancel();
+      abortController.current?.abort();
+    };
+  },[mobile,debounceSearch]);
+
+
+  const handleSelectCustomer = (customer) => {
+    setMobile(customer.customer_mobile);
+    setName(customer.customer_name);
+    setEmail(customer.customer_email);
+
+    setSuggestions([]);
+  };
 
   // print: false for "Save Bill" (save only), true for "Save & Print" / Enter.
   const submit = (e, print = true) => {
@@ -60,27 +123,49 @@ export default function CustomerModal({ order, total, onSkip, onSubmit, onClose,
         )}
 
         <label className="block">
-          <span className="text-sm text-gray-600">Name</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} autoFocus className={field} />
-        </label>
-        <label className="block">
           <span className="text-sm text-gray-600">Mobile</span>
           <input
             value={mobile}
-            onChange={(e) => setMobile(e.target.value)}
+            onChange={(e) => {
+                const value = e.target.value.replace(/\D/g,'').slice(0,10);
+                setMobile(value)}
+            }
             inputMode="numeric"
             maxLength={10}
             placeholder="10-digit number"
             className={field}
+            autoFocus
           />
         </label>
+
+        {loading && <p>Searching ...</p>}
+        
+        {suggestions.length > 0 && (
+          <ul className="absolute z-10 w-full bg-white border rounded shadow">
+            {suggestions.map((customer) => (
+              <li
+                key={customer.id}
+                onClick={() => handleSelectCustomer(customer)}
+                className="p-2 cursor-pointer hover:bg-gray-100"
+              >
+                <div>{customer.customer_mobile}</div>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <label className="block">
+          <span className="text-sm text-gray-600">Name</span>
+          <input value={name} onChange={(e) => setName(e.target.value)} className={field} />
+        </label>
+        
         <label className="block">
           <span className="text-sm text-gray-600">Email</span>
           <input
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             inputMode="string"
-            placeholder="darshan@gmail.com"
+            placeholder="crustandbeyond@gmail.com"
             className={field}
           />
         </label>

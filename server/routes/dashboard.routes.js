@@ -97,7 +97,7 @@ router.get('/', async (_req, res) => {
       ON (o.created_at AT TIME ZONE $1)::date = d.day
    GROUP BY d.day
    ORDER BY d.day`,
-  [timezone]
+  [pool.TZ]
 );
 
   const today = todayResult[0][0];

@@ -86,8 +86,6 @@ router.post('/', async (req, res) => {
         }
       }
 
-      // Take each product's recipe quantities out of stock (products without a recipe are skipped).
-      // Throws 409 and saves nothing if any raw product would go below zero.
       await inventory.deductForOrder(order.id, items, conn, reservationKey);
 
       return order;

@@ -53,15 +53,6 @@ async function rawUnits(rawProductIds, conn = pool) {
   return rows;
 }
 
-// Row-level lock on these raw products, then their current stock (0 when there is no
-// inventory row yet). Two cashiers billing the same item: the second waits here until the
-// first commits or rolls back, then reads the stock the first one left.
-// - Locked in id order so two bills with the same items can't deadlock.
-// - NO KEY UPDATE still lets other tables reference the rows (FK checks don't block).
-// - Lock and read are separate statements: under READ COMMITTED each statement gets a fresh
-//   snapshot, so the read sees the other cashier's committed change (one combined
-//   SELECT ... FOR UPDATE would return the stock as it was before the wait).
-// Waits at most `lock_timeout` (set by the caller) before failing with code 55P03.
 async function lockStock(rawProductIds, conn = pool) {
   await conn.query(
     'SELECT id FROM raw_products WHERE id = ANY($1::int[]) ORDER BY id FOR NO KEY UPDATE',
@@ -84,10 +75,6 @@ async function readStock(rawProductIds, conn = pool) {
   return rows;
 }
 
-// Adds signed quantities to stock: [{ raw_product_id, qty, unit }] (one line per raw product).
-// A raw product with no inventory row yet gets one. Not an upsert: Postgres checks the
-// "qty >= 0" constraint on the would-be INSERT row first, which fails for negative changes.
-// Callers hold lockStock() on these raw products, so no one can insert the row in between.
 async function adjust(lines, conn = pool) {
   if (!lines.length) return;
   await conn.query(
@@ -105,8 +92,6 @@ async function adjust(lines, conn = pool) {
   );
 }
 
-// Raw products needed for products sold: [{ product_id, qty }] -> [{ raw_product_id, qty, unit }]
-// (recipe qty x qty sold, summed per raw product). Products without a recipe add nothing.
 async function recipeNeeds(sales, conn = pool) {
   if (!sales.length) return [];
   const { rows } = await conn.query(

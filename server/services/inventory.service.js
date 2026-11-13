@@ -143,9 +143,6 @@ async function deductForOrder(orderId, items, conn, reservationKey = null) {
   if (held.lines.length) await repo.setOrderReservation(orderId, reservationKey, conn);
 }
 
-// Bill cancelled: put back exactly what it took out. If the bill came from a cart whose KOT
-// already went to the kitchen (reservationKey), the stock goes back to that cart's
-// reservation instead, so it stays held until the cart is checked out again or cleared.
 async function restoreForOrder(orderId, conn, reservationKey = null) {
   const taken = await repo.orderStock(orderId, conn);
   if (!reservationKey) {

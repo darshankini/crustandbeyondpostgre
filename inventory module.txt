@@ -7,8 +7,6 @@ product_name varchar 255 not null unique
 product_image varchar 255 nullable
 created_at timestamp
 
-
-
 inventory table 
 id primary key not null eg 1
 raw_product_id int 11 not null unique maida
@@ -33,9 +31,15 @@ unit enum gram/ml not null gram
 purchase master
 purchase 
 id primary key not null
+invoice_no varchar 255 nullable
+invoice_date date 
+total integer not null
+
+purchase_items
 raw_product_id int 11 not null
 product_qty int 11 not null
 product_unit enum gram/ml not null default gram
+subtotal int 11 not null 
 expiry_date date nullable
 created_at timestamp
 
@@ -47,7 +51,8 @@ component
         purchase list ( table view) - purchaseList.js
             id 
             invoice no
-            purchase date 
+            purchase date
+            total 
             purchase details modal view on click of preview button or link - purchasePreview.js
                 id 
                 raw_item_name
@@ -57,8 +62,145 @@ component
                 
     hooks/
     api/
-        addPurchase - Post - request payload (raw_item_id,)
-        
+        addPurchase - Post - request payload (
+            invoice_no
+            invoice_date
+            total
+            [raw_product_id,product_qty,product_unit,expiry_date (optional),subtotal])
+        updatePurchase - post - request payload (
+            purchase_id,
+            invoice_no
+            invoice_date
+            total
+            [raw_product_id,product_qty,product_unit,expiry_date (optional)])
+        deletePurchase -> delete -> delte the purchase
+        editPurchase -> get -> request payload (purchase_id) 
     services/
+        call an api endpoint
+            addPurchase
+            editPurchase
+            updatePurchase
+            deletePurchase
     validation
+        validation -> raw_product_id map with raw_products it should be available in raw_products
+        product_qty -> must be integer
+        product_qty -> either gram or ml
+        expiry_date -> it should be valid date
     utils/
+
+ recipe 
+    ui/
+        recipe list ( table view) - recipeList.js
+            id 
+            product_id decimal (10,2) 
+            purchase details modal view on click of preview button or link - purchasePreview.js
+                id 
+                raw_item_name
+                qty + gram/unit 
+                
+    hooks/
+    api/
+        addRecipe - Post - request payload (product_id,raw_product_id,product_qty,product_unit,expiry_date (optional))
+        updateRecipe - post - request payload (
+            recipe_id,
+            product_id,
+            [raw_product_id,product_qty,product_unit,expiry_date (optional)])
+        deleteRecipe -> delete -> delete the recipe with recipe_id
+        editRecipe -> get -> request payload (recipe_id) 
+    services/
+        call an api endpoint
+            addRecipe
+            editRecipe
+            updateRecipe
+            deleteRecipe
+    validation
+        validation -> raw_product_id map with raw_products it should be available in raw_products
+        product_qty -> must be integer
+        product_qty -> either gram or ml
+        expiry_date -> it should be valid date
+    utils/
+
+Inventory 
+    ui/
+        inventory list ( table view) - inventoryList.js
+            id 
+            raw_product_id integer 11
+            product_qty integer 11
+            product_unit enum gm/ml
+                
+    hooks/
+    api/
+        addInventory - Post - request payload (raw_product_id,product_qty,product_unit)
+        updateInvenotory - post - request payload (
+            raw_product_id,product_qty,product_unit)
+        deleteInventory -> delete -> delete the recipe with inventory_id
+        editInventory -> get -> request payload (inventory_id) 
+    services/
+        call an api endpoint
+            addInventory
+            editInventory
+            updateInventory
+            deleteInventory
+    validation
+        validation -> raw_product_id map with raw_products it should be available in raw_products
+        product_qty -> must be integer
+        product_unit -> either gram or ml
+    utils/
+
+
+Raw Master 
+    ui/
+        inventory list ( table view) - rawproductList.js
+            id 
+            raw_product_id integer 11
+            product_qty integer 11
+            product_unit enum gm/ml
+            product_image varchar 255
+                
+    hooks/
+    api/
+        addRawProduct - Post - request payload (raw_product_id,product_qty,product_unit)
+        updateInvenotory - post - request payload (
+            raw_product_id,product_qty,product_unit)
+        deleteRawProduct -> delete -> delete the recipe with RawProduct_id
+        editRawProduct -> get -> request payload (RawProduct_id) 
+    services/
+        call an api endpoint
+            addRawProduct
+            editRawProduct
+            updateRawProduct
+            deleteRawProduct
+    validation
+        validation -> raw_product_id map with raw_products it should be available in raw_products
+        product_qty -> must be integer
+        product_unit -> either gram or ml
+        product_image -> supported file size will be jpg,jpeg,png,svg,webp. Upload max file size will be 150 kb . folder should be writable.
+    utils/
+
+
+
+1. When purchase the item. Item goes into purchase list along with the inventory. 
+    if purchase list add inventory stock will be plus 
+2. when edit the purchase it will reflect in inventory depend on plus minus
+3. if delete the purchase it will reduce the stock from inventory as well
+4. when bill prints it will check its recipe_id according to recipe_id it will reduce the stock from inventory 
+5. dont add real time validation. access inputs with ref and then validate on submit of button. 
+
+
+Backend
+Purchase / inventory / recipe
+    route -> define route of api
+    validate -> validate the param
+    controller -> control the route
+    service -> add business logic if any
+    repository -> add database operations like insert/update/delete/edit in this file  ->
+     write parameterised query to avoid sql injection. Use pool connection to use same connection with query
+
+1. add middleware -> login auth, rate limit api
+2. handle cors
+
+
+
+
+
+

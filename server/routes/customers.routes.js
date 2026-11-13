@@ -34,4 +34,38 @@ router.get('/', async (_req, res) => {
   }
 });
 
+
+router.get('/search', async (req, res) => {
+  try {
+    const mobile = String(req.query.mobile || '').replace(/\D/g, '');
+
+    if (mobile.length < 3) {
+      return res.json([]);
+    }
+
+    const query = `
+      SELECT
+        customer_name,
+        customer_mobile,
+        customer_email
+      FROM customers
+      WHERE customer_mobile::TEXT LIKE $1
+      ORDER BY customer_mobile
+      LIMIT 10
+    `;
+
+    const rows = await pool.query(query, [`%${mobile}%`]);
+    
+    res.json(rows);
+
+  } catch (error) {
+    console.error('Customer search failed:', error);
+
+    res.status(500).json({
+      error: 'Failed to search customers'
+    });
+  }
+});
+
+
 module.exports = router;

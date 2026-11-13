@@ -47,7 +47,7 @@ export default function MonthlySalesChart({ data }) {
     <div className="flex items-start justify-between gap-2 mb-3">
       <div>
         <h3 className="font-semibold">Monthly sales</h3>
-        <p className="text-xs text-gray-500">Last {data.length} weeks (Mon–Sun) · {money(total)} total</p>
+        <p className="text-xs text-gray-500">Last {data.length} days (Mon–Sun) · {money(total)} total</p>
       </div>
       <button onClick={() => setAsTable((v) => !v)}
         className="px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200">
@@ -127,7 +127,8 @@ export default function MonthlySalesChart({ data }) {
           ))}
           {/* Week labels */}
           {data.map((d, i) => showLabel(i) && (
-            <text key={d.week} x={x(i)} y={H - 8} textAnchor="middle" fontSize="11" fill="#6b7280">{fmtDay(d.week)}</text>
+            
+            <text key={d.week} x={x(i)} y={H - 8} textAnchor="middle" fontSize="11" fill="#6b7280">{fmtDay(d.day)}</text>
           ))}
 
           {/* Crosshair */}
@@ -150,7 +151,7 @@ export default function MonthlySalesChart({ data }) {
         {a && (
           <div className="pointer-events-none absolute top-1 z-10 rounded-md border bg-white px-3 py-2 text-xs shadow-lg whitespace-nowrap"
             style={x(active) > width / 2 ? { right: width - x(active) + 10 } : { left: x(active) + 10 }}>
-            <div className="text-gray-500">{weekRange(a.week)}</div>
+            <div className="text-gray-500">{fmtDay(a.day)}</div>
             <div className="mt-1 flex items-center gap-2">
               <span className="inline-block h-0.5 w-3 rounded" style={{ background: LINE }} />
               <strong className="text-sm text-gray-900">{money(a.sales)}</strong>
