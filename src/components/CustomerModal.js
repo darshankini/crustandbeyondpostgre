@@ -42,7 +42,7 @@ export default function CustomerModal({ order, total, onSkip, onSubmit, onClose,
       setSuggestions(data.flat());
 
     }catch(error){
-      if(error.name != "AbortError"){
+      if(error.name !== "AbortError"){
         console.error(error);
         setSuggestions([]);
       }
