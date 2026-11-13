@@ -38,6 +38,11 @@ const pool = url
 // Timezone used for "today" / per-day grouping on the dashboard (DB stores timestamptz).
 const TZ = process.env.APP_TZ || 'Asia/Kolkata';
 
+// Hour (0-23, local time) at which the dashboard's business day rolls over. The restaurant
+// serves past midnight, so orders before this hour count toward the previous day's sales.
+const startHour = Number(process.env.APP_DAY_START_HOUR ?? 4);
+const DAY_START_HOUR = Number.isInteger(startHour) && startHour >= 0 && startHour <= 23 ? startHour : 4;
+
 // Returns [rows] so `const [rows] = await query(...)` works.
 // Use $1, $2... placeholders; INSERTs that need the new id should add `RETURNING id`.
 async function query(sql, params = []) {
@@ -82,5 +87,6 @@ module.exports = {
   describe,
   pool,               // raw pg pool (use pool.connect() + BEGIN/COMMIT for transactions)
   TZ,
+  DAY_START_HOUR,
   end: () => pool.end(),
 };
